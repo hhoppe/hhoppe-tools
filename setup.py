@@ -12,7 +12,7 @@ setuptools.setup(
   long_description=long_description,
   long_description_content_type='text/markdown',
   url='https://github.com/hhoppe/hhoppe_utils.git',
-  packages=['hhoppe_utils'],  # packages=setuptools.find_packages(),
+  packages=setuptools.find_packages(),
   classifiers=[
     'Programming Language :: Python :: 3',
     'License :: OSI Approved :: MIT License',
