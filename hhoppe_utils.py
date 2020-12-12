@@ -4,14 +4,14 @@
 # pylint: disable=line-too-long
 Useful commands:
 
-python3 -m doctest -v hh.py  # Test doc string examples.
-python3 hh.py  # Also run _self_test().
-mypy --strict ~/bin/hh.py
-gpylint ~/bin/hh.py
-pydoc3 ~/bin/hh.py  # Print module help information (like "help(hh)" within Python)
-autopep8 --aggressive --max-line-length 80 --indent-size 2 --diff ~/bin/hh.py
-autopep8 --aggressive --max-line-length 80 --indent-size 2 ~/bin/hh.py >/tmp/v && ediff ~/bin/hh.py /tmp/v
-autopep8 --aggressive --max-line-length 80 --indent-size 2 --inplace ~/bin/hh.py
+python3 -m doctest -v hhoppe_utils.py  # Test doc string examples.
+python3 hhoppe_utils.py  # Also run _self_test().
+mypy --strict ~/bin/hhoppe_utils.py
+gpylint ~/bin/hhoppe_utils.py
+pydoc3 ~/bin/hhoppe_utils.py  # Print module help information (like "help(hh)" within Python)
+autopep8 --aggressive --max-line-length 80 --indent-size 2 --diff ~/bin/hhoppe_utils.py
+autopep8 --aggressive --max-line-length 80 --indent-size 2 ~/bin/hhoppe_utils.py >/tmp/v && ediff ~/bin/hhoppe_utils.py /tmp/v
+autopep8 --aggressive --max-line-length 80 --indent-size 2 --inplace ~/bin/hhoppe_utils.py
 
 # pylint: enable=line-too-long
 """
