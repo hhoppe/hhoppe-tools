@@ -1,5 +1,4 @@
 # hhoppe_utils
 
-Library of Python tools including some for `Jupyter`/`Colab`.
+Library of Python tools -- [Hugues Hoppe](https://hhoppe.com).
 
-[]: # (See https://guides.github.com/features/mastering-markdown/)
