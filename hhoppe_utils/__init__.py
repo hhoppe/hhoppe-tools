@@ -1,44 +1,68 @@
 #!/usr/bin/env python3
-"""Python library for Hugues Hoppe.
-
+"""Library of Python tools -- Hugues Hoppe.
 # pylint: disable=line-too-long
-Useful commands:
 
-python3 -m doctest -v hhoppe_utils.py  # Test doc string examples.
-python3 hhoppe_utils.py  # Also run _self_test().
-mypy --strict ~/bin/hhoppe_utils.py
-gpylint ~/bin/hhoppe_utils.py
-pydoc3 ~/bin/hhoppe_utils.py  # Print module help information (like "help(hh)" within Python)
-autopep8 --aggressive --max-line-length 80 --indent-size 2 --diff ~/bin/hhoppe_utils.py
-autopep8 --aggressive --max-line-length 80 --indent-size 2 ~/bin/hhoppe_utils.py >~/tmp/v && ediff ~/bin/hhoppe_utils.py ~/tmp/v
-autopep8 --aggressive --max-line-length 80 --indent-size 2 --inplace ~/bin/hhoppe_utils.py
+Useful commands for testing and polish:
+
+bash -c 'f=hhoppe_utils.py; env python3 $f; env mypy --strict "$f" && autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; echo All ran.'
+
+env python3 -m doctest -v hhoppe_utils.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
+hhoppe_utils.py
+env mypy --strict hhoppe_utils.py
+bash -c "autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 hhoppe_utils.py >~/tmp/v && ediff hhoppe_utils.py ~/tmp/v"
+bash -c 'pylint --indent-string="  " --disable=C0103,C0302,C0415,R0201,R0902,R0903,R0913,R0914 hhoppe_utils.py'
+bash -c "pydoc3 ~/bin/hhoppe_utils.py"  # Print module help
+gpylint hhoppe_utils.py
 
 # pylint: enable=line-too-long
 """
 
+import ast
+import collections.abc
+import contextlib
 import doctest
-import os
+import functools
+import io  # pylint: disable=unused-import
+import importlib.util
+import itertools
+import math
+import numbers
+import os  # pylint: disable=unused-import
+import pathlib
 import re
-import subprocess
+import stat
 import sys
-import tempfile
+import tempfile  # pylint:disable=unused-import
+import time
 import traceback
-from typing import Any, Sequence, Union
+import typing
+from typing import Any, Callable, Generator, Iterable
+from typing import Iterator, List, Mapping, Optional, Sequence
+from typing import Tuple, TypeVar, Union
+import unittest.mock as mock  # pylint: disable=unused-import
 
 import numpy as np  # type: ignore
 
-# To avoid package.module.function, place all code in __init__.py (https://pcarleton.com/2016/09/06/python-init/):
-# https://github.com/python/cpython/blob/master/Lib/collections/__init__.py
+_T = TypeVar('_T')
+
+# https://github.com/python/mypy/issues/5667
+if typing.TYPE_CHECKING:
+  _Path = Union[str, 'os.PathLike[str]']
+else:
+  _Path = Union[str, os.PathLike]
+
+
+## Debugging output
 
 
 def check(condition: bool, message: Any = '') -> None:
   """Raises an informative exception unless condition.
 
   Args:
-    condition: expression whose value should be true.
-    message: string or object reported in exception if condition is false.
+    condition: Expression whose value should be true.
+    message: String or object reported in exception if condition is false.
   Raises:
-    RuntimeError: if condition is false.
+    RuntimeError: If condition is false.
 
   >>> check(1)
 
@@ -57,13 +81,13 @@ def check_eq(a: Any, b: Any, message: Any = None) -> None:
   """Raises an informative exception unless a == b.
 
   Args:
-    a: first expression.
-    b: second expression.
-    message: string or object reported in exception if condition is false.
+    a: First expression.
+    b: Second expression.
+    message: String or object reported in exception if condition is false.
   Raises:
-    RuntimeError: if condition is false.
+    RuntimeError: If condition is false.
 
-  >>> check_eq('a', 'a')
+  >>> check_eq('a' + 'b', 'ab')
 
   >>> check_eq(1 + 2, 4)
   Traceback (most recent call last):
@@ -77,54 +101,30 @@ def check_eq(a: Any, b: Any, message: Any = None) -> None:
     check(a == b, f'{a!r} == {b!r}{message}')
 
 
-def eprint(*args: str, **kwargs: Any) -> None:
-  """Print to stderr."""
+def print_err(*args: str, **kwargs: Any) -> None:
+  r"""Prints arguments to stderr immediately.
+
+  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  ...   print_err('hello')
+  ...   print(repr(m.getvalue()))
+  'hello\n'
+  """
   kwargs = {**dict(file=sys.stderr, flush=True), **kwargs}
   print(*args, **kwargs)
 
 
-def run(args: Union[str, Sequence[str]]) -> None:
-  """Execute command, printing output from stdout and stderr.
-
-  Args:
-    args: command to execute, which can be either a string or a sequence of
-      word strings, as in subprocess.run().  If args is a string, the shell is
-      invoked to interpret it.
-
-  Raises:
-    RuntimeError: (with verbose string) if the command's exit code is nonzero.
-
-  >>> run('echo a')
-  a
-
-  >>> run(['sh', '-c', 'echo b'])
-  b
-  """
-  proc = subprocess.run(
-      args,
-      shell=isinstance(args, str),
-      stdout=subprocess.PIPE,
-      stderr=subprocess.STDOUT,
-      check=False,
-      universal_newlines=True)
-  print(proc.stdout, end='', flush=True)
-  if proc.returncode:
-    raise RuntimeError(
-        f'Command {proc.args} failed with code {proc.returncode}')
-
-
-def matching_parenthesis(text: str) -> int:
+def _matching_parenthesis(text: str) -> int:
   """Returns the index of ')' matching '(' in text[0].
 
   Args:
-    text: string whose first character must be a left parenthesis.
+    text: String whose first character must be a left parenthesis.
   Raises:
-    RuntimeError: if there is no matching right parenthesis in the text string.
+    RuntimeError: If there is no matching right parenthesis in the text string.
 
-  >>> matching_parenthesis('(hello (there) and here) again')
+  >>> _matching_parenthesis('(hello (there) and here) again')
   23
   """
-  assert text[0] == '('
+  check_eq(text[0], '(')
   num_open = 0
   for i, c in enumerate(text):
     if c == '(':
@@ -133,7 +133,7 @@ def matching_parenthesis(text: str) -> int:
       num_open -= 1
       if num_open == 0:
         return i
-  raise RuntimeError(f'No matching parenthesis in "{text}"')
+  raise RuntimeError(f'No matching right parenthesis in "{text}"')
 
 
 def dump_vars(*args: Any) -> str:
@@ -148,68 +148,1192 @@ def dump_vars(*args: Any) -> str:
   so it is fragile and non-portable.
 
   Args:
-    *args: expressions.
+    *args: Expressions to show.
   Raises:
-    Exception: if the dump_vars(...) does not fit on a single source line.
+    Exception: If the dump_vars(...) does not fit on a single source line.
 
   >>> a = 45
   >>> b = 'Hello'
+  >>> dump_vars(a)
+  'a = 45'
+  >>> dump_vars(b)
+  'b = Hello'
   >>> dump_vars(a, b, (a * 2) + 5, b + ' there')
   "a = 45, b = Hello, (a * 2) + 5 = 95, b + ' there' = Hello there"
   """
   # Adapted from make_dict() in https://stackoverflow.com/a/2553524/1190077.
   stack = traceback.extract_stack()
-  this_function_name = stack[-1][2]
+  this_function_name = stack[-1][2]  # i.e. initially 'dump_vars'.
   for stackframe in stack[-2::-1]:
-    (filename, unused_line_number, function_name, text) = stackframe  # caller
+    (filename, unused_line_number, function_name, text) = stackframe  # Caller.
     # https://docs.python.org/3/tutorial/errors.html:
     # "however, it will not display lines read from standard input."
     if filename == '<stdin>':
-      assert text == ''
-      return ', '.join(str(e) for e in args)
+      check_eq(text, '')
+      return ', '.join(str(e) for e in args)  # Unfortunate fallback.
     prefix = this_function_name + '('
     begin = text.find(prefix)
     if begin < 0:
-      raise Exception(f'Cannot find "{prefix}" in line "{text}"')
+      raise Exception(f'dump_vars: cannot find "{prefix}" in line "{text}"')
     begin += len(this_function_name)
-    end = begin + matching_parenthesis(text[begin:])
-    parameter_string = text[begin + 1:end]
+    end = begin + _matching_parenthesis(text[begin:])
+    parameter_string = text[begin + 1:end].strip()
     if re.fullmatch(r'\*[\w]+', parameter_string):
       this_function_name = function_name
       # Because the call is made using a *args, we continue to
       # the earlier caller in the stack trace.
     else:
-      text = [name.strip() for name in parameter_string.split(',')]
-      return ', '.join([t + ' = ' + str(e) for (t, e) in zip(text, args)])
-  assert False
+      if hasattr(ast, 'get_source_segment'):  # Python 3.8.
+        node = ast.parse(parameter_string)
+        # print(ast.dump(node))  # ", indent=2" requires Python 3.9.
+        value = getattr(node.body[0], 'value', '?')
+        elements = getattr(value, 'elts', [value])
+
+        def get_text(element: Any) -> str:
+          text = ast.get_source_segment(parameter_string, element)
+          return '?' if text is None else text
+
+        expressions = [get_text(element) for element in elements]
+      else:
+        expressions = [name.strip() for name in parameter_string.split(',')]
+      l = []
+      for (expr, value) in zip(expressions, args):
+        l.append(f'{expr} = {value}' if expr[0] not in '"\'' else str(value))
+      return ', '.join(l)
+  raise AssertionError
 
 
-def show(*args: Any, **kwargs: Any) -> None:
-  """Prints expressions and their values on stderr.
+def show(*args: Any) -> None:
+  r"""Prints expressions and their values on stderr.
 
   Args:
-    *args: expressions to show.
-    **kwargs: keyword arguments passed to eprint().
+    *args: Expressions to show.
+    **kwargs: Keyword arguments passed to print_err().
 
-  >>> show(4 * 3, file=sys.stdout)
-  4 * 3 = 12
+  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  ...   show(4 * 3)
+  ...   print(repr(m.getvalue()))
+  '4 * 3 = 12\n'
 
-  >>> a ='<string>'
-  >>> show(a, a * 2, 34 // 3, file=sys.stdout)
-  a = <string>, a * 2 = <string><string>, 34 // 3 = 11
+  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  ...   a ='<string>'
+  ...   show(a, 'literal_string', "s", a * 2, 34 // 3)
+  ...   print(repr(m.getvalue()))
+  'a = <string>, literal_string, s, a * 2 = <string><string>, 34 // 3 = 11\n'
   """
-  eprint(dump_vars(*args), **kwargs)
+  print_err(dump_vars(*args))
+
+
+## Operations on iterables
+
+
+def only(iterable: Iterable[_T]) -> _T:
+  """Returns the first element and asserts that there are no more.
+
+  >>> only(range(1))
+  0
+
+  >>> only(range(2))
+  Traceback (most recent call last):
+  ...
+  ValueError: [0, 1, ...] has more than one element
+
+  >>> only(range(0))
+  Traceback (most recent call last):
+  ...
+  StopIteration
+  """
+  # return (lambda x: x)(*iterable)
+  iterator = iter(iterable)
+  first = next(iterator)
+  missing = object()
+  second = next(iterator, missing)
+  if second != missing:
+    raise ValueError(f'[{first}, {second}, ...] has more than one element')
+  return first
+
+
+def grouped(iterable: Iterable[_T],
+            n: int,
+            fillvalue: Optional[_T] = None,
+            ) -> Iterator[Tuple[Optional[_T], ...]]:
+  """Returns elements collected into fixed-length chunks.  A.k.a. 'grouper'.
+
+  >>> list(grouped('ABCDEFG', 3, 'x'))
+  [('A', 'B', 'C'), ('D', 'E', 'F'), ('G', 'x', 'x')]
+
+  >>> list(grouped(range(5), 3))
+  [(0, 1, 2), (3, 4, None)]
+
+  >>> list(grouped(range(5), 3, fillvalue=9))
+  [(0, 1, 2), (3, 4, 9)]
+
+  >>> list(grouped(range(6), 3))
+  [(0, 1, 2), (3, 4, 5)]
+  """
+  iters = [iter(iterable)] * n
+  return itertools.zip_longest(*iters, fillvalue=fillvalue)
+
+
+def chunked(iterable: Iterable[_T],
+            n: Optional[int] = None,
+            ) -> Iterator[Tuple[_T, ...]]:
+  """Returns elements collected as tuples of length at most 'n' if not None.
+
+  >>> list(chunked('ABCDEFG', 3))
+  [('A', 'B', 'C'), ('D', 'E', 'F'), ('G',)]
+
+  >>> list(chunked(range(5), 3))
+  [(0, 1, 2), (3, 4)]
+
+  >>> list(chunked(range(5)))
+  [(0, 1, 2, 3, 4)]
+  """
+
+  def take(n: int, iterable: Iterable[_T]) -> Tuple[_T, ...]:
+    return tuple(itertools.islice(iterable, n))
+
+  return iter(functools.partial(take, n, iter(iterable)), ())
+
+
+def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
+  """Given an iterator, returns first element and re-initialized iterator.
+
+  Example:
+    first_image, images = peek_first(images)
+
+  Args:
+    iterator: An input iterator or iterable.
+
+  Returns:
+    A tuple (first_element, iterator_reinitialized) containing:
+      first_element: The first element of the input.
+      iterator_reinitialized: A clone of the original iterator/iterable.
+
+  >>> value, iter = peek_first(range(5))
+  >>> value
+  0
+  >>> list(iter)
+  [0, 1, 2, 3, 4]
+  """
+  # Inspired from https://stackoverflow.com/a/12059829/1190077
+  peeker, iterator_reinitialized = itertools.tee(iterator)
+  first = next(peeker)
+  return first, iterator_reinitialized
+
+
+## Meta programming
+
+
+def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
+  """Returns function decorated with no-op; invokable with or without args.
+
+  >>> @noop_decorator
+  ... def func1(x): return x * 10
+  >>> @noop_decorator()
+  ... def func2(x): return x * 10
+  >>> @noop_decorator(2, 3)
+  ... def func3(x): return x * 10
+  >>> @noop_decorator(keyword=True)
+  ... def func4(x): return x * 10
+  >>> check_eq(func1(1) + func2(1) + func3(1) + func4(1), 40)
+  """
+  if len(args) != 1 or not callable(args[0]) or kwargs:
+    return noop_decorator  # decorator invoked with arguments; ignore them
+  func: Callable[[Any], Any] = args[0]
+  return func
+
+
+## Imports and modules
+
+
+# If placing this code in a package, rename this file to __init__.py
+# as discussed in https://pcarleton.com/2016/09/06/python-init/
+# to avoid long names like package.module.function.  See the example in
+# https://github.com/python/cpython/blob/master/Lib/collections/__init__.py
+
+
+def create_module(module_name: str,
+                  functions: Iterable[Callable[[Any], Any]] = (),
+                  ) -> Any:
+  """Returns a new empty module (not associated with any file).
+
+  >>> def some_function(*args, **kwargs): return 'success'
+  >>> test_module = create_module('test_module', [some_function])
+  >>> test_module.some_function(10)
+  'success'
+  >>> assert 'some_function' in dir(test_module)
+  >>> help(test_module.some_function)
+  Help on function some_function in module test_module:
+  <BLANKLINE>
+  some_function(*args, **kwargs)
+  <BLANKLINE>
+  """
+  # https://stackoverflow.com/a/53080237/1190077
+  module = sys.modules.get(module_name)
+  if not module:
+    spec = importlib.util.spec_from_loader(module_name, loader=None)
+    assert spec
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+
+  for function in functions:
+    setattr(module, function.__name__, function)
+    function.__module__ = module_name
+
+  return module
+
+
+## System functions
+
+
+@contextlib.contextmanager
+def timing(description: str = 'Timing') -> Generator[None, None, None]:
+  r"""Context that reports elapsed time.
+
+  Example:
+    with timing('List comprehension example'):
+      _ = [i for i in range(10_000_000)]
+
+  Args:
+    description: A string to print before the elapsed time.
+
+  Yields:
+    None.
+
+  >>> with timing('List comprehension example'):
+  ...   _ = [i for i in range(10_000)]  # doctest:+ELLIPSIS
+  List comprehension example: 0.00...
+  """
+  start = time.monotonic()
+  yield
+  elapsed_time = time.monotonic() - start
+  print(f'{description}: {elapsed_time:.6f}')
+
+
+def typename(o: Any) -> str:
+  """Returns the full name (including module) of the type of o.
+
+  >>> typename(5)
+  'int'
+
+  >>> typename('text')
+  'str'
+
+  >>> typename(np.array([1]))
+  'numpy.ndarray'
+  """
+  # https://stackoverflow.com/a/2020083
+  name: str = o.__class__.__qualname__
+  module = o.__class__.__module__
+  return name if module in (None, 'builtins') else f'{module}.{name}'
+
+
+def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
+  """Lists the variables with the largest memory allocation (in bytes).
+
+  Usage:
+    show_biggest_vars(globals())
+
+  Args:
+    variables: Dictionary of variables (often, `globals()`).
+    n: The number of largest variables to list.
+
+  >>> show_biggest_vars({'i': 12, 's': 'text', 'ar': np.ones((1000, 1000))})
+  ... # doctest:+ELLIPSIS
+  ar                       numpy.ndarray        ...
+  s                        str                  ...
+  i                        int                  ...
+  """
+  var = variables
+  infos = [(name, sys.getsizeof(value), typename(value))
+           for name, value in var.items()]
+  infos.sort(key=lambda pair: pair[1], reverse=True)
+  for name, size, vartype in infos[:n]:
+    print(f'{name:24} {vartype:20} {size:_}')
+
+
+## Mathematics
+
+
+def as_float(a: Any) -> np.ndarray:
+  """Converts non-floating-point array to floating-point type.
+
+  Args:
+    a: Input array.
+
+  Returns:
+    Array 'a' if it is already floating-point (np.float32 or np.float64),
+    else 'a' converted to type np.float32 or np.float64 based on the necessary
+    precision.  Note that 64-bit integers cannot be represented exactly.
+
+  >>> as_float(np.array([1.0, 2.0]))
+  array([1., 2.])
+
+  >>> as_float(np.array([1.0, 2.0], dtype=np.float32))
+  array([1., 2.], dtype=float32)
+
+  >>> as_float(np.array([1.0, 2.0], dtype='float64'))
+  array([1., 2.])
+
+  >>> as_float(np.array([1, 2], dtype=np.uint8))
+  array([1., 2.], dtype=float32)
+
+  >>> as_float(np.array([1, 2], dtype=np.uint16))
+  array([1., 2.], dtype=float32)
+
+  >>> as_float(np.array([1, 2]))
+  array([1., 2.])
+  """
+  a = np.asarray(a)
+  if issubclass(a.dtype.type, np.floating):
+    return a
+  dtype = np.float64 if np.iinfo(a.dtype).bits >= 32 else np.float32
+  return dtype(a)
+
+
+def normalize(a: Any, axis: Optional[int] = None) -> np.ndarray:
+  """Returns array 'a' scaled such that its elements have unit 2-norm.
+
+  Args:
+    a: Input array.
+    axis: Optional axis.  If None, normalizes the entire matrix.  Otherwise,
+      normalizes each element along the specified axis.
+
+  Returns:
+    An array such that its elements along 'axis' are rescaled to have L2 norm
+    equal to 1.  Any element with zero norm is replaced by nan values.
+
+  >>> normalize(np.array([10, 10, 0]))
+  array([0.70710678, 0.70710678, 0.        ])
+
+  >>> normalize([[0, 10], [10, 10]], axis=-1)
+  array([[0.        , 1.        ],
+         [0.70710678, 0.70710678]])
+
+  >>> normalize([[0, 10], [10, 10]], axis=0)
+  array([[0.        , 0.70710678],
+         [1.        , 0.70710678]])
+
+  >>> normalize([[0, 10], [10, 10]])
+  array([[0.        , 0.57735027],
+         [0.57735027, 0.57735027]])
+  """
+  a = np.asarray(a)
+  norm = np.linalg.norm(a, axis=axis)
+  if axis is not None:
+    norm = np.expand_dims(norm, axis)
+  with np.errstate(invalid='ignore'):
+    return a / norm
+
+
+def rms(a: Any, axis: Optional[int] = None) -> Union[float, np.ndarray]:
+  """Returns the root mean square of the array values.
+
+  >>> rms([3.0])
+  3.0
+
+  >>> rms([-3.0, 4.0])
+  3.5355339059327378
+
+  >>> rms([10, 11, 12])
+  11.030261405182864
+
+  >>> rms([[-1.0, 1.0], [0.0, -2.0]])
+  1.224744871391589
+
+  >>> rms([[-1.0, 1.0], [0.0, -2.0]], axis=-1)
+  array([1.        , 1.41421356])
+  """
+  return np.sqrt(np.mean(np.square(as_float(a)), axis, dtype=np.float64))
+
+
+def lenient_subtract(a: Any, b: Any) -> Any:
+  """Returns a - b, but returns 0 where a and b are the same signed infinity.
+
+  >>> inf = math.inf
+  >>> lenient_subtract([3., 3., inf, inf, -inf, -inf],
+  ...                  [1., inf, inf, -inf, inf, -inf])
+  array([  2., -inf,   0.,  inf, -inf,   0.])
+  """
+  a = np.asarray(a)
+  b = np.asarray(b)
+  same_infinity = ((np.isposinf(a) & np.isposinf(b)) |
+                   (np.isneginf(a) & np.isneginf(b)))
+  return np.subtract(a, b, out=np.zeros_like(a), where=~same_infinity)
+
+
+def print_array(a: Any, **kwargs: Any) -> None:
+  """Prints array.
+
+  >>> print_array(np.arange(6).reshape(2, 3), file=sys.stdout)
+  array([[0, 1, 2],
+         [3, 4, 5]]) shape=(2, 3) dtype=int64
+  """
+  x = np.asarray(a)
+  print_err(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
+
+
+def prime_factors(n: int) -> List[int]:
+  """Returns an ascending list of the (greather-than-one) prime factors of n.
+
+  >>> prime_factors(1)
+  []
+
+  >>> prime_factors(2)
+  [2]
+
+  >>> prime_factors(4)
+  [2, 2]
+
+  >>> prime_factors(60)
+  [2, 2, 3, 5]
+  """
+  factors = []
+  d = 2
+  while d * d <= n:
+    while (n % d) == 0:
+      factors.append(d)
+      n //= d
+    d += 1
+  if n > 1:
+    factors.append(n)
+  return factors
+
+
+def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
+  """Finds the greatest common divisor using the extended Euclidean algorithm.
+
+  Returns:
+    A tuple (gcd, x, y) with the property that a * x + b * y = gcd.
+
+  >>> extended_gcd(29, 71)
+  (1, -22, 9)
+  >>> (29 * -22) % 71
+  1
+  """
+  prev_x, x = 1, 0
+  prev_y, y = 0, 1
+  while b:
+    q = a // b
+    x, prev_x = prev_x - q * x, x
+    y, prev_y = prev_y - q * y, y
+    a, b = b, a % b
+  x, y = prev_x, prev_y
+  return a, x, y
+
+
+def modular_inverse(a: int, b: int) -> int:
+  """Returns the multiplicative inverse of 'a' with respect to the modulus 'b'.
+
+  With the extended Euclidean algorithm, for the case that a and b are coprime,
+  i.e. gcd(a, b) = 1, applying "modulo b" to both sides of a * x + b * y = 1
+  results in (a * x) % b = 1, and hence 'x' is a modular multiplicative inverse
+  of 'a' with respect to the modulus 'b'.
+  See https://en.wikipedia.org/wiki/Modular_multiplicative_inverse
+
+  >>> modular_inverse(29, 71)
+  49
+  >>> (29 * 49) % 71
+  1
+  """
+  gcd, x, unused_y = extended_gcd(a, b)
+  check_eq(gcd, 1)
+  return x % b
+
+
+def diagnostic(a: Any) -> str:
+  """Returns a diagnostic string summarizing the values in 'a' for debugging.
+
+  Args:
+    a: Input values; must be convertible to an np.ndarray of scalars.
+
+  Returns:
+    A string summarizing the different types of arithmetic values.
+
+  >>> import textwrap
+  >>> print(textwrap.fill(diagnostic(
+  ...     [[math.nan, math.inf, -math.inf, -math.inf], [0, -1, 2, -0]])))
+  shape=(2, 4) dtype=float64 size=8 nan=1 posinf=1 neginf=2 finite=4,
+  min=-1.0, max=2.0, avg=0.25, sdv=1.25831) zero=2
+  """
+  a = np.asarray(a)
+  dtype = a.dtype
+  if dtype == bool:
+    a = a.astype(np.uint8)
+  finite = a[np.isfinite(a)]
+  return (f'shape={a.shape} dtype={dtype} size={a.size}'
+          f' nan={np.sum(np.isnan(a))}'
+          f' posinf={np.sum(np.isposinf(a))}'
+          f' neginf={np.sum(np.isneginf(a))}'
+          f' finite{repr(Stats(finite))[10:]}'
+          f' zero={np.sum(finite == 0)}')
+
+
+## Stats
+
+
+class Stats:
+  r"""Immutable statistics computed from some numbers.
+
+  >>> Stats([])
+  Stats(size=0, min=nan, max=nan, avg=nan, sdv=nan)
+
+  >>> Stats([1.5])
+  Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
+
+  >>> Stats([3, 4])
+  Stats(size=2, min=3, max=4, avg=3.5, sdv=0.707107)
+
+  >>> Stats([3.0, 4.0])
+  Stats(size=2, min=3.0, max=4.0, avg=3.5, sdv=0.707107)
+
+  >>> Stats([-12345., 2.0**20])
+  Stats(size=2, min=-12345.0, max=1.04858e+06, avg=5.18116e+05, sdv=7.50184e+05)
+
+  >>> print(Stats(range(55)))
+  (       55)            0 : 54           av=27.0000      sd=16.0208
+
+  >>> print(Stats())
+  (        0)          nan : nan          av=nan          sd=nan
+
+  >>> str(Stats([3.0]))
+  '(        1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
+
+  >>> print(f'{Stats([-12345., 2.0**20]):15.9}')
+  (        2)        -12345.0 : 1048576.0       av=518115.5        sd=750184.433
+
+  >>> print(f'{Stats([-12345., 2.0**20]):#10.4}')
+  (        2) -1.234e+04 : 1.049e+06  av=5.181e+05  sd=7.502e+05
+
+  >>> len(Stats([1, 2]))
+  2
+  >>> Stats([-2, 2]).rms()
+  2.0
+
+  >>> a = Stats([1, 2])
+  >>> a.min, a.max, a.avg()
+  (1, 2, 1.5)
+  >>> a.min = 0
+  Traceback (most recent call last):
+  ...
+  TypeError: Frozen: cannot assign to field 'min'
+
+  >>> stats1 = Stats([-3, 7])
+  >>> stats2 = Stats([1.25e11 / 3, -1_234_567_890])
+  >>> stats3 = stats1 + stats2 * 20_000_000
+  >>> print(stats1, f'{stats2}', format(stats3), sep='\n')
+  (        2)           -3 : 7            av=2.00000      sd=7.07107
+  (        2) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=3.03358e+10
+  ( 40000002) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=2.14506e+10
+
+  >>> fmt = '9.3'
+  >>> print(f'{stats1:{fmt}}', f'{stats2:{fmt}}', f'{stats3:{fmt}}', sep='\n')
+  (        2)        -3 : 7         av=2.0       sd=7.07
+  (        2) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=3.03e+10
+  ( 40000002) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=2.15e+10
+  """
+
+  size: int
+  sum: float
+  sum2: float
+  min: Union[int, float]
+  max: Union[int, float]
+
+  def __init__(self, iterable: Iterable[Any] = (), **kwargs: Any) -> None:
+    """Computes statistics for numbers in iterable or initializes using kwargs.
+
+    Args:
+      iterable: Scalar values from which statistics are computed.
+      **kwargs: Direct initialization of statistics fields.
+    """
+    assert not(kwargs and iterable)
+    if not kwargs:
+      a = np.ravel(iterable)
+      kwargs = {
+          'size': a.size,
+          'sum': np.sum(a),
+          'sum2': np.sum(np.square(a)),
+          'min': np.min(a) if a.size > 0 else math.nan,
+          'max': np.max(a) if a.size > 0 else math.nan,
+      }
+    for key in ('size', 'sum', 'sum2', 'min', 'max'):
+      object.__setattr__(self, key, kwargs[key])
+
+  def __setattr__(self, *args: Any) -> None:
+    raise TypeError(f'Frozen: cannot assign to field \'{args[0]}\'')
+
+  def __delattr__(self, *args: Any) -> None:
+    raise TypeError(f'Frozen: cannot delete field \'{args[0]}\'')
+
+  def avg(self) -> float:
+    """Returns the average."""
+    return self.sum / self.size if self.size else math.nan
+
+  def ssd(self) -> float:
+    """Returns the sum of squared deviations."""
+    return (math.nan if self.size == 0 else
+            max(self.sum2 - self.sum**2 / self.size, 0))
+
+  def var(self) -> float:
+    """Returns the unbiased estimate of variance, as in np.var(a, ddof=1)."""
+    return (math.nan if self.size == 0 else
+            0.0 if self.size == 1 else
+            self.ssd() / (self.size - 1))
+
+  def sdv(self) -> float:
+    """Returns the unbiased standard deviation as in np.std(a, ddof=1)."""
+    return self.var()**0.5
+
+  def rms(self) -> float:
+    """Returns the root-mean-square."""
+    return 0.0 if self.size == 0 else (self.sum2 / self.size)**0.5
+
+  def __eq__(self, other: object) -> bool:
+    if not isinstance(other, Stats):
+      return NotImplemented
+    return ((self.size, self.sum, self.sum2, self.min, self.max) ==
+            (other.size, other.sum, other.sum2, other.min, other.max))
+
+  def __format__(self, format_spec: str = '') -> str:
+    """Returns a summary of the statistics (size, min, max, avg, sdv)."""
+    fmt = format_spec if format_spec else '#12.6'
+    fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
+    fmt_min = fmt if isinstance(self.min, np.floating) else fmt_int
+    fmt_max = fmt if isinstance(self.max, np.floating) else fmt_int
+    return (f'({self.size:9})'
+            f' {self.min:{fmt_min}} :'
+            f' {self.max:<{fmt_max}}'
+            f' av={self.avg():<{fmt}}'
+            f' sd={self.sdv():<{fmt}}').rstrip()
+
+  def __str__(self) -> str:
+    return self.__format__()
+
+  def __repr__(self) -> str:
+    fmt = '.6'
+    fmt_int = ''
+    fmt_min = fmt if isinstance(self.min, np.floating) else fmt_int
+    fmt_max = fmt if isinstance(self.max, np.floating) else fmt_int
+    return (f'Stats(size={self.size}, '
+            f'min={self.min:{fmt_min}}, '
+            f'max={self.max:{fmt_max}}, '
+            f'avg={self.avg():{fmt}}, '
+            f'sdv={self.sdv():{fmt}})')
+
+  def __len__(self) -> int:
+    return self.size
+
+  def __add__(self, other: 'Stats') -> 'Stats':
+    """Returns combined statistics.
+
+    >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
+    True
+    """
+    return Stats(size=self.size + other.size, sum=self.sum + other.sum,
+                 sum2=self.sum2 + other.sum2, min=min(self.min, other.min),
+                 max=max(self.max, other.max))
+
+  def __mul__(self, n: int) -> 'Stats':
+    """Returns statistics whereby each element appears 'n' times.
+
+    >>> Stats([4, -2]) * 3 == Stats([4, -2] * 3)
+    True
+    """
+    return Stats(size=self.size * n, sum=self.sum * n, sum2=self.sum2 * n,
+                 min=self.min, max=self.max)
+
+
+## Numpy operations
+
+
+def array_always(a: Any) -> np.ndarray:
+  """Returns a numpy array even if a is an iterator of subarrays.
+
+  >>> array_always(np.array([[1, 2], [3, 4]]))
+  array([[1, 2],
+         [3, 4]])
+
+  >>> array_always(range(3) for _ in range(2))
+  array([[0, 1, 2],
+         [0, 1, 2]])
+
+  >>> array_always(np.array([[1, 2], [3, 4]]))
+  array([[1, 2],
+         [3, 4]])
+  """
+  if isinstance(a, collections.abc.Iterator):
+    return np.array(tuple(a))
+  return np.asarray(a)
+
+
+def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
+                   dtype: Any = None) -> np.ndarray:
+  """Returns array of integers by mapping from array of characters.
+
+  >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
+  array([0, 1, 2, 0, 1])
+  """
+# Adapted from https://stackoverflow.com/a/49566980
+  a = np.asarray(a).view(np.int32)
+  lookup = np.zeros(np.max(a) + 1, dtype=dtype or np.int64)
+  for ch, value in int_from_ch.items():
+    lookup[ord(ch)] = value
+  return lookup[a]
+
+
+def grid_from_string(s: str,
+                     int_from_ch: Optional[Mapping[str, int]] = None,
+                     dtype: Any = None) -> np.ndarray:
+  r"""Returns a 2D array created from a multiline string.
+
+  Args:
+    s: String whose nonempty lines correspond to the rows of the grid, with
+      one chr per grid element.
+    int_from_ch: Mapping from the chr in s to integers in the resulting grid;
+      if None, the grid contains chr elements (dtype='<U1').
+    dtype: Integer element type for the result of int_from_ch.
+
+  >>> s = '..B\nB.A\n'
+  >>> g = grid_from_string(s)
+  >>> g, g.nbytes
+  (array([['.', '.', 'B'],
+         ['B', '.', 'A']], dtype='<U1'), 24)
+
+  >>> g = grid_from_string(s, {'.': 0, 'A': 1, 'B': 2})
+  >>> g, g.nbytes
+  (array([[0, 0, 2],
+         [2, 0, 1]]), 48)
+
+  >>> g = grid_from_string(s, {'.': 0, 'A': 1, 'B': 2}, dtype=np.uint8)
+  >>> g, g.nbytes
+  (array([[0, 0, 2],
+         [2, 0, 1]], dtype=uint8), 6)
+  """
+  lines = s.strip('\n').splitlines()
+  height, width = len(lines), len(lines[0])
+  grid = np.empty((height, width), dtype='U1')
+  dtype_for_row = f'U{width}'
+  for i, line in enumerate(lines):
+    grid[i].view(dtype_for_row)[0] = line
+  if int_from_ch is None:
+    assert dtype is None
+  else:
+    grid = np_int_from_ch(grid, int_from_ch, dtype=dtype)
+  return grid
+
+
+def string_from_grid(grid: Any,
+                     ch_from_int: Optional[Mapping[int, str]] = None) -> str:
+  r"""Returns a multiline string created from a 2D array.
+
+  Args:
+    grid: 2D array-like data containing either chr or integers.
+    ch_from_int: Mapping from each integer in grid to the chr in the resulting
+      string; if None, the grid must contain str or byte elements.
+
+  >>> string_from_grid([[0, 1], [0, 0]], {0: '.', 1: '#'})
+  '.#\n..'
+
+  >>> string_from_grid([['a', 'b', 'c'], ['d', 'e', 'f']])
+  'abc\ndef'
+
+  >>> string_from_grid([[b'A', b'B'], [b'C', b'D']])
+  'AB\nCD'
+  """
+  grid = np.asarray(grid)
+  check_eq(grid.ndim, 2)
+  lines = []
+  for y in range(grid.shape[0]):
+    if ch_from_int is None:
+      if grid.dtype.kind == 'S':  # or dtype.type == np.bytes_
+        line = b''.join(grid[y]).decode('ascii')
+      else:
+        line = ''.join(grid[y])
+    else:
+      line = ''.join(ch_from_int[elem] for elem in grid[y])
+    lines.append(line)
+  return '\n'.join(lines)
+
+
+def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
+                                             Mapping[Sequence[int], Any]],
+                      background: Any = 0,
+                      foreground: Any = 1,
+                      indices_min: Optional[Union[int, Sequence[int]]] = None,
+                      indices_max: Optional[Union[int, Sequence[int]]] = None,
+                      pad: Union[int, Sequence[int]] = 0,
+                      dtype: Any = None) -> np.ndarray:
+  r"""Returns an array from (sparse) indices or from a map {index: value}.
+
+  Indices are sequences of integers with some length D, which determines the
+  dimensionality of the output array.  The array shape is computed by bounding
+  the range of index coordinates in each dimension (which may be overriden by
+  'indices_min' and 'indices_max') and is adjusted by the 'pad' parameter.
+
+  Args:
+    iterable_or_map: A sequence of indices or a mapping from indices to values.
+    background: Value assigned to the array elements not in 'iterable_or_map'.
+    foreground: If 'iterable_or_map' is an iterable, the array value assigned to
+      its indices.
+    indices_min: For each dimension, the index coordinate that gets mapped to
+      coordinate zero in the array.  Replicated if an integer.
+    indices_max: For each dimension, the index coordinate that gets mapped to
+      the last coordinate in the array.  Replicated if an integer.
+    pad: For each dimension d, number of additional slices of 'background' values
+      before and after the range [indices_min[d], indices_max[d]].
+    dtype: Data type of the output array.
+
+  Returns:
+    A D-dimensional numpy array initialized with the value 'background' and
+    then sparsely assigned the elements in the parameter 'iterable_or_map'
+    (using 'foreground' value if an iterable, or the map values if a map).
+    By default, array spans a tight bounding box of the indices, but these
+    bounds can be overridden using 'indices_min', 'indices_max', and 'pad'.
+
+  >>> l = [(-1, -2), (-1, 1), (1, 0)]
+  >>> grid_from_indices(l)
+  array([[1, 0, 0, 1],
+         [0, 0, 0, 0],
+         [0, 0, 1, 0]])
+
+  >>> grid_from_indices(l, indices_max=(1, 2))
+  array([[1, 0, 0, 1, 0],
+         [0, 0, 0, 0, 0],
+         [0, 0, 1, 0, 0]])
+
+  >>> grid_from_indices(l, foreground='#', background='.')
+  array([['#', '.', '.', '#'],
+         ['.', '.', '.', '.'],
+         ['.', '.', '#', '.']], dtype='<U1')
+
+  >>> l = [5, -2, 1]
+  >>> grid_from_indices(l, pad=1)
+  array([0, 1, 0, 0, 1, 0, 0, 0, 1, 0])
+
+  >>> grid_from_indices(l, indices_min=-4, indices_max=5)
+  array([0, 0, 1, 0, 0, 1, 0, 0, 0, 1])
+
+  >>> l = [(1, 1, 1), (2, 2, 2), (2, 1, 1)]
+  >>> repr(grid_from_indices(l))
+  'array([[[1, 0],\n        [0, 0]],\n\n       [[1, 0],\n        [0, 1]]])'
+
+  >>> m = {(-1, 0): 'A', (0, 2): 'B', (1, 1): 'C'}
+  >>> grid_from_indices(m, background=' ')
+  array([['A', ' ', ' '],
+         [' ', ' ', 'B'],
+         [' ', 'C', ' ']], dtype='<U1')
+
+  >>> grid_from_indices(m, background=' ', dtype='S1')
+  array([[b'A', b' ', b' '],
+         [b' ', b' ', b'B'],
+         [b' ', b'C', b' ']], dtype='|S1')
+  """
+  assert isinstance(iterable_or_map, collections.abc.Iterable)
+  is_map = False
+  if isinstance(iterable_or_map, collections.abc.Mapping):
+    is_map = True
+    mapping: Mapping[Sequence[int], Any] = iterable_or_map
+
+  indices = np.asarray(list(iterable_or_map))
+  if indices.ndim == 1:
+    indices = indices[:, None]
+  assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
+
+  def get_min_or_max_bound(f: Any, x: Any) -> np.ndarray:
+    return f(indices, axis=0) if x is None else np.full(indices.shape[1], x)
+
+  i_min = get_min_or_max_bound(np.min, indices_min)
+  i_max = get_min_or_max_bound(np.max, indices_max)
+  a_pad = np.asarray(pad)
+  shape = i_max - i_min + 2 * a_pad + 1
+  offset = -i_min + a_pad
+  if is_map:
+    dtype = np.array([next(iter(mapping.values()))], dtype=dtype).dtype
+  grid = np.full(shape, background, dtype=dtype)
+  indices += offset
+  grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
+  return grid
+
+
+def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
+                      background: Any,
+                      cmap: Mapping[Any, Tuple[numbers.Integral,
+                                               numbers.Integral,
+                                               numbers.Integral]],
+                      pad: Union[int, Sequence[int]] = 0) -> np.ndarray:
+  """Returns image from mapping {yx: value} and cmap = {value: rgb}.
+
+  >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
+  >>> cmap = {'A': (100, 1, 2), 'B': (3, 200, 4), ' ': (235, 235, 235)}
+  >>> image_from_yx_map(m, background=' ', cmap=cmap)
+  array([[[235, 235, 235],
+          [100,   1,   2],
+          [235, 235, 235]],
+  <BLANKLINE>
+         [[100,   1,   2],
+          [235, 235, 235],
+          [  3, 200,   4]]], dtype=uint8)
+  """
+  array = grid_from_indices(map_yx_value, background=background, pad=pad)
+  image = np.array([cmap[e] for e in array.ravel()], dtype=np.uint8)
+  image = image.reshape(*array.shape, 3)
+  return image
+
+
+def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
+  """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
+
+  Args:
+    shape: Input dimensions.  These must be positive, except that one dimension
+      may be -1 to indicate that it should be computed.  If all dimensions are
+      positive, these must satisfy np.product(shape) >= num.
+    num: Number of elements to fit into the output shape.
+
+  Returns:
+    The original 'shape' if all its dimensions are positive.  Otherwise, a
+    new_shape where the unique dimension with value -1 is replaced by the
+    smallest number such that np.product(new_shape) >= num.
+
+  >>> fit_shape((3, 4), 10)
+  (3, 4)
+
+  >>> fit_shape((5, 2), 11)
+  Traceback (most recent call last):
+  ...
+  ValueError: (5, 2) is insufficiently large for 11 elements.
+
+  >>> fit_shape((3, -1), 10)
+  (3, 4)
+
+  >>> fit_shape((-1, 10), 51)
+  (6, 10)
+  """
+  shape = tuple(shape)
+  if not all(dim > 0 for dim in shape if dim != -1):
+    raise ValueError(f'Shape {shape} has non-positive dimensions.')
+  if sum(dim == -1 for dim in shape) > 1:
+    raise ValueError(f'More than one dimension in {shape} is -1.')
+  if -1 in shape:
+    slice_size = np.product([dim for dim in shape if dim != -1])
+    shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim
+                  for dim in shape)
+  elif np.product(shape) < num:
+    raise ValueError(f'{shape} is insufficiently large for {num} elements.')
+  return shape
+
+
+def assemble_arrays(arrays: Sequence[np.ndarray],
+                    shape: Sequence[int],
+                    background: Any = 0,
+                    *,
+                    align: str = 'center',
+                    spacing: Any = 0,
+                    round_to_even: Any = False) -> np.ndarray:
+  """Returns an output array formed as a packed grid of input arrays.
+
+  Args:
+    arrays: Sequence of input arrays with the same data type and rank.  The
+      arrays must have the same trailing dimensions arrays[].shape[len(shape):].
+      The leading dimensions arrays[].shape[:len(shape)] may be different and
+      these are packed together as a grid to form output.shape[:len(shape)].
+    shape: Dimensions of the grid used to unravel the arrays before packing. The
+      dimensions must be positive, with product(shape) >= len(arrays).  One
+      dimension of shape may be -1, in which case it is computed automatically
+      as the smallest value such that product(shape) >= len(arrays).
+    background: Broadcastable value used for the unassigned elements of the
+      output array.
+    align: Relative position ('center', 'start', or 'stop') for each input array
+      and for each axis within its output grid cell.  The value must be
+      broadcastable onto the shape [len(arrays), len(shape)].
+    spacing: Extra space between grid elements.  The value may be specified
+      per-axis, i.e., it must be broadcastable onto the shape [len(shape)].
+    round_to_even: If True, ensure that the final output dimension of each axis
+      is even.  The value must be broadcastable onto the shape [len(shape)].
+
+  Returns:
+    A numpy output array of the same type as the input 'arrays', with
+    output.shape = packed_shape + arrays[0].shape[len(shape):], where
+    packed_shape is obtained by packing arrays[:].shape[:len(shape)] into a
+    grid of the specified 'shape'.
+
+  >>> assemble_arrays(
+  ...    [np.array([[1, 2, 3]]), np.array([[5], [6]]), np.array([[7]]),
+  ...     np.array([[8, 9]]), np.array([[3, 4, 5]])],
+  ...    shape=(2, 3))
+  array([[1, 2, 3, 0, 5, 0, 7],
+         [0, 0, 0, 0, 6, 0, 0],
+         [8, 9, 0, 3, 4, 5, 0]])
+  """
+  num = len(arrays)
+  if num == 0:
+    raise ValueError('There must be at least one input array.')
+  shape = fit_shape(shape, num)
+  if any(array.dtype != arrays[0].dtype for array in arrays):
+    raise ValueError(f'Arrays {arrays} have different types.')
+  tail_dims = arrays[0].shape[len(shape):]
+  if any(array.shape[len(shape):] != tail_dims for array in arrays):
+    raise ValueError(f'Shapes of {arrays} do not all end in {tail_dims}')
+  align = np.broadcast_to(align, (num, len(shape)))
+  spacing = np.broadcast_to(spacing, (len(shape)))
+  round_to_even = np.broadcast_to(round_to_even, (len(shape)))
+
+  # [shape] -> leading dimensions [:len(shape)] of each input array.
+  head_dims = np.array([array.shape[:len(shape)] for array in arrays] +
+                       [[0] * len(shape)] * (np.product(shape) - num)).reshape(
+                           *shape, len(shape))
+
+  # For each axis, find the length and position of each slice of input arrays.
+  axis_lengths, axis_origins = [], []
+  for axis, shape_axis in enumerate(shape):
+    all_lengths = np.moveaxis(head_dims[..., axis], axis, 0)
+    # Find the length of each slice along axis as the max over its arrays.
+    lengths = np.max(all_lengths, axis=tuple(range(1, len(shape))))
+    # Compute the dimension of the output axis.
+    total_length = np.sum(lengths) + spacing[axis] * (shape_axis - 1)
+    if round_to_even[axis] and total_length % 2 == 1:
+      lengths[-1] += 1  # Lengthen the last slice so the axis dimension is even.
+    axis_lengths.append(lengths)
+    # Insert inter-element padding spaces.
+    spaced_lengths = np.insert(lengths, 0, 0)
+    spaced_lengths[1:-1] += spacing[axis]
+    # Compute slice positions along axis as cumulative sums of slice lengths.
+    axis_origins.append(np.cumsum(spaced_lengths))
+
+  # [shape] -> smallest corner coords in output array.
+  origins = np.moveaxis(np.meshgrid(*axis_origins, indexing='ij'), 0, -1)
+
+  # Initialize the output array.
+  output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
+  output_array = np.full(output_shape, background, dtype=arrays[0].dtype)
+
+  def offset(length: int, size: int, align: str) -> int:
+    """Returns offset to align element of given size within cell of length."""
+    remainder = length - size
+    if align not in ('start', 'stop', 'center'):
+      raise ValueError(f'Alignment {align} is not recognized.')
+    return (0 if align == 'start' else
+            remainder if align == 'stop' else remainder // 2)
+
+  # Copy each input array to its packed, aligned location in the output array.
+  for i, array in enumerate(arrays):
+    coords = np.unravel_index(i, shape)
+    slices = []
+    for axis in range(len(shape)):
+      start = origins[coords][axis]
+      length = axis_lengths[axis][coords[axis]]
+      extent = array.shape[axis]
+      aligned_start = start + offset(length, extent, align[i][axis])
+      slices.append(slice(aligned_start, aligned_start + extent))
+    output_array[tuple(slices)] = array
+
+  return output_array
+
+
+def shift(array: Any, offset: Any, constant_values: Any = 0) -> np.ndarray:
+  """Returns copy of array shifted by offset, with fill using constant.
+
+  >>> array = np.arange(1, 13).reshape(3, 4)
+
+  >>> shift(array, (1, 1))
+  array([[0, 0, 0, 0],
+         [0, 1, 2, 3],
+         [0, 5, 6, 7]])
+
+  >>> shift(array, (-1, -2), constant_values=-1)
+  array([[ 7,  8, -1, -1],
+         [11, 12, -1, -1],
+         [-1, -1, -1, -1]])
+  """
+  array = np.asarray(array)
+  offset = np.atleast_1d(offset)
+  assert offset.shape == (array.ndim,)
+  new_array = np.empty_like(array)
+
+  def slice_axis(o: int) -> slice:
+    return slice(o, None) if o >= 0 else slice(0, o)
+
+  new_array[tuple(slice_axis(o) for o in offset)] = (
+      array[tuple(slice_axis(-o) for o in offset)])
+
+  for axis, o in enumerate(offset):
+    new_array[(slice(None),) * axis +
+              (slice(0, o) if o >= 0 else slice(o, None),)] = constant_values
+
+  return new_array
+
+
+# def test_shift() -> None:
+#   for offset1 in range(-4, 4):
+#     print(offset1, shift(range(3), offset1, -1))
+#   for offset2 in itertools.product(range(-4, 5), repeat=2):
+#     print(offset2)
+#     print(shift(np.arange(12).reshape(3, 4), offset2, -1))
+
+# neighbors = np.array([shift(grid, -dyx, constant_values=10) for dyx in dyxs])
+# t = np.pad(grid, 1, constant_values=10)
+# neighbors = np.array([t[1 + dyx[0]:, 1 + dyx[1]:]
+#                       [:grid.shape[0], :grid.shape[1]] for dyx in dyxs])
+
+
+## General I/O.
+
+
+def write_contents(path: str, data: Union[str, bytes]) -> None:
+  """Writes data (either utf-8 string or bytes) to file.
+
+  >>> with tempfile.TemporaryDirectory() as dir:
+  ...   path = pathlib.Path(dir) / 'file'
+  ...   write_contents(path, b'hello')
+  ...   check_eq(path.read_bytes(), b'hello')
+  ...   write_contents(path, 'hello2')
+  ...   check_eq(path.read_text(), 'hello2')
+  """
+  bytes_data: bytes = data if isinstance(data, bytes) else data.encode()
+  with open(path, 'wb') as f:
+    f.write(bytes_data)
+
+
+def is_executable(path: _Path) -> bool:
+  """Checks if a file is executable.
+
+  >>> with tempfile.TemporaryDirectory() as dir:
+  ...   path = pathlib.Path(dir) / 'file'
+  ...   _ = path.write_text('test')
+  ...   check_eq(is_executable(path), False)
+  ...   if sys.platform != 'cygwin':
+  ...     # Copy R bits to X bits:
+  ...     path.chmod(path.stat().st_mode | ((path.stat().st_mode & 0o444) >> 2))
+  ...     check_eq(is_executable(path), True)
+  """
+  return bool(pathlib.Path(path).stat().st_mode & stat.S_IEXEC)
+
+
+## Testing
 
 
 def _self_test() -> None:
   """Runs doctest and other tests."""
   doctest.testmod()
 
-  with tempfile.TemporaryDirectory() as tmpdir:
-    filename = os.path.join(tmpdir, 'test.txt')
-    run(f'echo a >{filename}')
-    with open(filename) as f:
-      check_eq(f.read(), 'a\n')
+  # Roundtrip tests for string -> grid -> string:
+  s = '..A.\nC.#.\n.AA.\n'
+  g = grid_from_string(s, {'.': 0, '#': 1, 'A': 11, 'C': 12}, dtype=np.uint8)
+  check_eq(g.dtype, np.uint8)
+  check_eq(g.nbytes, 12)
+  s2 = string_from_grid(g, {0: '.', 1: '#', 11: 'A', 12: 'C'})
+  check_eq(s2, s.strip())
+
+  g = grid_from_string(s)
+  check_eq(g.dtype, '<U1')      # single unicode character
+  check_eq(g.nbytes, 48)
+  check_eq(string_from_grid(g), s.strip())
+
+  g = grid_from_string(s).astype('S1')  # single ascii byte character
+  check_eq(g.dtype, '<S1')
+  check_eq(g.nbytes, 12)
+  s2 = string_from_grid(g)
+  check_eq(s2, s.strip())
 
 
 if __name__ == '__main__':
