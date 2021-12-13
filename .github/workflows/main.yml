@@ -32,11 +32,11 @@ jobs:
       run: |
         # python3 setup.py sdist bdist_wheel
         python3 -m pip install twine
-        python3 -m twine upload dist/*
+        python3 -m twine upload --repository testpypi dist/*
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        TWINE_REPOSITORY: hhoppe_utils
+        TWINE_REPOSITORY: hhopped-_utils
 
     - name: Publish distribution to PyPI
       if: startsWith(github.ref, 'refs/tags')
