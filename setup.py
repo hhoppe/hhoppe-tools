@@ -1,19 +1,34 @@
+import pathlib
 import setuptools
 
-with open('README.md') as f:
-  long_description = f.read()
-with open('requirements.txt') as f:
-  requirements = [line.strip() for line in f]
+
+def get_version(rel_path):
+  path = pathlib.Path(__file__).resolve().parent / rel_path
+  for line in path.read_text().splitlines():
+    if line.startswith("__version__ = '"):
+      _, version, _ = line.split("'")
+      return version
+  raise RuntimeError(f'Unable to find version string in {path}.')
+
+
+def get_long_description():
+  return pathlib.Path('README.md').read_text()
+
+
+def get_requirements():
+  with open('requirements.txt') as f:
+    return [line.strip() for line in f]
+
 
 setuptools.setup(
-  name='hhoppe_utils',
-  version='0.0.1',
+  name='hhoppe-utils',
+  version=get_version('hhoppe_utils/__init__.py'),
   author='Hugues Hoppe',
   author_email='hhoppe@gmail.com',
   description='Library of Python tools by Hugues Hoppe',
-  long_description=long_description,
+  long_description=get_long_description(),
   long_description_content_type='text/markdown',
-  url='https://github.com/hhoppe/hhoppe_utils.git',
+  url='https://github.com/hhoppe/hhoppe-utils.git',
   packages=setuptools.find_packages(),
   classifiers=[
     'Programming Language :: Python :: 3',
@@ -21,5 +36,5 @@ setuptools.setup(
     'Operating System :: OS Independent',
   ],
   python_requires='>=3.7',
-  install_requires=requirements,
+  install_requires=get_requirements(),
 )
