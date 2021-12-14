@@ -29,11 +29,12 @@ jobs:
         python -m pip install pytest
         pytest --doctest-modules
 
-    - name: Run mypy
-      run: |
-        python -m pip install mypy
-        # Omit "--strict" because numpy on github has type stubs.
-        mypy --exclude 'build/|setup.py' .
+# mypy takes too long (5 minutes)
+#     - name: Run mypy
+#       run: |
+#         python -m pip install mypy
+#         # Omit "--strict" because numpy on github has type stubs.
+#         mypy --exclude 'build/|setup.py' .
 
     - name: Build a binary wheel and a source tarball
       run: |

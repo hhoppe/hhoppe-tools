@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.5'
+__version__ = '0.5.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -59,11 +59,11 @@ else:
 ## Debugging output
 
 
-def check(condition: bool, message: Any = '') -> None:
+def check(condition: Any, message: Any = '') -> None:
   """Raises an informative exception unless condition.
 
   Args:
-    condition: Expression whose value should be true.
+    condition: Expression convertible to bool.
     message: String or object reported in exception if condition is false.
   Raises:
     RuntimeError: If condition is false.
@@ -1183,7 +1183,7 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
   round_to_even = np.broadcast_to(round_to_even, (len(shape)))
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
-  head_dims = np.array([array.shape[:len(shape)] for array in arrays] +
+  head_dims = np.array([list(array.shape[:len(shape)]) for array in arrays] +
                        [[0] * len(shape)] * (np.prod(shape) - num)).reshape(
                            *shape, len(shape))
 
