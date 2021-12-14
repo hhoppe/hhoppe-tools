@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.6'
+__version__ = '0.5.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -117,29 +117,6 @@ def print_err(*args: str, **kwargs: Any) -> None:
   print(*args, **kwargs)
 
 
-def _matching_parenthesis(text: str) -> int:
-  """Returns the index of ')' matching '(' in text[0].
-
-  Args:
-    text: String whose first character must be a left parenthesis.
-  Raises:
-    RuntimeError: If there is no matching right parenthesis in the text string.
-
-  >>> _matching_parenthesis('(hello (there) and here) again')
-  23
-  """
-  check_eq(text[0], '(')
-  num_open = 0
-  for i, c in enumerate(text):
-    if c == '(':
-      num_open += 1
-    elif c == ')':
-      num_open -= 1
-      if num_open == 0:
-        return i
-  raise RuntimeError(f'No matching right parenthesis in "{text}"')
-
-
 def dump_vars(*args: Any) -> str:
   """Returns a string showing the values of each expression.
 
@@ -165,6 +142,20 @@ def dump_vars(*args: Any) -> str:
   >>> dump_vars(a, b, (a * 2) + 5, b + ' there')
   "a = 45, b = Hello, (a * 2) + 5 = 95, b + ' there' = Hello there"
   """
+
+  def matching_parenthesis(text: str) -> int:
+    """Returns the index of ')' matching '(' in text[0]."""
+    check_eq(text[0], '(')
+    num_open = 0
+    for i, c in enumerate(text):
+      if c == '(':
+        num_open += 1
+      elif c == ')':
+        num_open -= 1
+        if num_open == 0:
+          return i
+    raise RuntimeError(f'No matching right parenthesis in "{text}"')
+
   # Adapted from make_dict() in https://stackoverflow.com/a/2553524/1190077.
   stack = traceback.extract_stack()
   this_function_name = stack[-1][2]  # i.e. initially 'dump_vars'.
@@ -180,7 +171,7 @@ def dump_vars(*args: Any) -> str:
     if begin < 0:
       raise Exception(f'dump_vars: cannot find "{prefix}" in line "{text}"')
     begin += len(this_function_name)
-    end = begin + _matching_parenthesis(text[begin:])
+    end = begin + matching_parenthesis(text[begin:])
     parameter_string = text[begin + 1:end].strip()
     if re.fullmatch(r'\*[\w]+', parameter_string):
       this_function_name = function_name
