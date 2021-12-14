@@ -1,9 +1,12 @@
 name: Build, test, and publish Python distributions to PyPI
 
+# My strategy is test, build, and (try to) publish on all push events.  The
+# publish step fails silently if the pypi version already exists.
+
 on:
   push:
     branches: [main]
-    tags: "v*.*.*"  # A tag push is not associated with a branch, so OR with this.
+    # tags: "v*.*.*"  # Tag push is not associated with a branch, so OR this.
   pull_request:
     branches: [main]
   workflow_dispatch:
