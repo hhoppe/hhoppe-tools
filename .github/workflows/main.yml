@@ -20,21 +20,24 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install pypa/build
-      run: python -m pip install build --user
-
     - name: Install any requirements
       run: |
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
 
     - name: Run tests including doctest
-      run: pytest --doctest-modules
+      run: |
+        python -m pip install pytest
+        pytest --doctest-modules
 
     - name: Run mypy
-      run: mypy --strict --exclude 'build/|setup.py' .
+      run: |
+        python -m pip install mypy
+        mypy --strict --exclude 'build/|setup.py' .
 
     - name: Build a binary wheel and a source tarball
-      run: python -m build --sdist --wheel --outdir dist/ .
+      run: |
+        python -m pip install build --user
+        python -m build --sdist --wheel --outdir dist/ .
 
     - name: Publish distribution to Test PyPI
       uses: pypa/gh-action-pypi-publish@master
