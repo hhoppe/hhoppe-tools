@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.4'
+__version__ = '0.5.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -984,8 +984,8 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
       coordinate zero in the array.  Replicated if an integer.
     indices_max: For each dimension, the index coordinate that gets mapped to
       the last coordinate in the array.  Replicated if an integer.
-    pad: For each dimension d, number of additional slices of 'background' values
-      before and after the range [indices_min[d], indices_max[d]].
+    pad: For each dimension d, number of additional slices of 'background'
+      values before and after the range [indices_min[d], indices_max[d]].
     dtype: Data type of the output array.
 
   Returns:
@@ -1313,32 +1313,5 @@ def is_executable(path: _Path) -> bool:
   return bool(pathlib.Path(path).stat().st_mode & stat.S_IEXEC)
 
 
-## Testing
-
-
-def _self_test() -> None:
-  """Runs doctest and other tests."""
-  doctest.testmod()
-
-  # Roundtrip tests for string -> grid -> string:
-  s = '..A.\nC.#.\n.AA.\n'
-  g = grid_from_string(s, {'.': 0, '#': 1, 'A': 11, 'C': 12}, dtype=np.uint8)
-  check_eq(g.dtype, np.uint8)
-  check_eq(g.nbytes, 12)
-  s2 = string_from_grid(g, {0: '.', 1: '#', 11: 'A', 12: 'C'})
-  check_eq(s2, s.strip())
-
-  g = grid_from_string(s)
-  check_eq(g.dtype, '<U1')      # single unicode character
-  check_eq(g.nbytes, 48)
-  check_eq(string_from_grid(g), s.strip())
-
-  g = grid_from_string(s).astype('S1')  # single ascii byte character
-  check_eq(g.dtype, '<S1')
-  check_eq(g.nbytes, 12)
-  s2 = string_from_grid(g)
-  check_eq(s2, s.strip())
-
-
 if __name__ == '__main__':
-  _self_test()
+  doctest.testmod()
