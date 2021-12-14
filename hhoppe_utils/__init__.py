@@ -493,7 +493,7 @@ def as_float(a: Any) -> np.ndarray:
   if issubclass(a.dtype.type, np.floating):
     return a
   dtype = np.float64 if np.iinfo(a.dtype).bits >= 32 else np.float32
-  return dtype(a)
+  return a.astype(dtype)
 
 
 def normalize(a: Any, axis: Optional[int] = None) -> np.ndarray:
@@ -667,9 +667,9 @@ def diagnostic(a: Any) -> str:
     a = a.astype(np.uint8)
   finite = a[np.isfinite(a)]
   return (f'shape={a.shape} dtype={dtype} size={a.size}'
-          f' nan={np.sum(np.isnan(a))}'
-          f' posinf={np.sum(np.isposinf(a))}'
-          f' neginf={np.sum(np.isneginf(a))}'
+          f' nan={np.isnan(a).sum()}'
+          f' posinf={np.isposinf(a).sum()}'
+          f' neginf={np.isneginf(a).sum()}'
           f' finite{repr(Stats(finite))[10:]}'
           f' zero={np.sum(finite == 0)}')
 
@@ -753,13 +753,13 @@ class Stats:
     """
     assert not(kwargs and iterable)
     if not kwargs:
-      a = np.ravel(iterable)
+      a = np.ravel(list(iterable))
       kwargs = {
           'size': a.size,
-          'sum': np.sum(a),
-          'sum2': np.sum(np.square(a)),
-          'min': np.min(a) if a.size > 0 else math.nan,
-          'max': np.max(a) if a.size > 0 else math.nan,
+          'sum': a.sum(),
+          'sum2': np.square(a).sum(),
+          'min': a.min() if a.size > 0 else math.nan,
+          'max': a.max() if a.size > 0 else math.nan,
       }
     for key in ('size', 'sum', 'sum2', 'min', 'max'):
       object.__setattr__(self, key, kwargs[key])
@@ -880,7 +880,7 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
   """
 # Adapted from https://stackoverflow.com/a/49566980
   a = np.asarray(a).view(np.int32)
-  lookup = np.zeros(np.max(a) + 1, dtype=dtype or np.int64)
+  lookup = np.zeros(a.max() + 1, dtype=dtype or np.int64)
   for ch, value in int_from_ch.items():
     lookup[ord(ch)] = value
   return lookup[a]
@@ -1091,13 +1091,13 @@ def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
   Args:
     shape: Input dimensions.  These must be positive, except that one dimension
       may be -1 to indicate that it should be computed.  If all dimensions are
-      positive, these must satisfy np.product(shape) >= num.
+      positive, these must satisfy np.prod(shape) >= num.
     num: Number of elements to fit into the output shape.
 
   Returns:
     The original 'shape' if all its dimensions are positive.  Otherwise, a
     new_shape where the unique dimension with value -1 is replaced by the
-    smallest number such that np.product(new_shape) >= num.
+    smallest number such that np.prod(new_shape) >= num.
 
   >>> fit_shape((3, 4), 10)
   (3, 4)
@@ -1119,10 +1119,10 @@ def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
   if sum(dim == -1 for dim in shape) > 1:
     raise ValueError(f'More than one dimension in {shape} is -1.')
   if -1 in shape:
-    slice_size = np.product([dim for dim in shape if dim != -1])
+    slice_size = np.prod([dim for dim in shape if dim != -1])
     shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim
                   for dim in shape)
-  elif np.product(shape) < num:
+  elif np.prod(shape) < num:
     raise ValueError(f'{shape} is insufficiently large for {num} elements.')
   return shape
 
@@ -1142,9 +1142,9 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
       The leading dimensions arrays[].shape[:len(shape)] may be different and
       these are packed together as a grid to form output.shape[:len(shape)].
     shape: Dimensions of the grid used to unravel the arrays before packing. The
-      dimensions must be positive, with product(shape) >= len(arrays).  One
+      dimensions must be positive, with prod(shape) >= len(arrays).  One
       dimension of shape may be -1, in which case it is computed automatically
-      as the smallest value such that product(shape) >= len(arrays).
+      as the smallest value such that prod(shape) >= len(arrays).
     background: Broadcastable value used for the unassigned elements of the
       output array.
     align: Relative position ('center', 'start', or 'stop') for each input array
@@ -1184,7 +1184,7 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
   head_dims = np.array([array.shape[:len(shape)] for array in arrays] +
-                       [[0] * len(shape)] * (np.product(shape) - num)).reshape(
+                       [[0] * len(shape)] * (np.prod(shape) - num)).reshape(
                            *shape, len(shape))
 
   # For each axis, find the length and position of each slice of input arrays.
@@ -1192,9 +1192,9 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
   for axis, shape_axis in enumerate(shape):
     all_lengths = np.moveaxis(head_dims[..., axis], axis, 0)
     # Find the length of each slice along axis as the max over its arrays.
-    lengths = np.max(all_lengths, axis=tuple(range(1, len(shape))))
+    lengths = all_lengths.max(axis=tuple(range(1, len(shape))))
     # Compute the dimension of the output axis.
-    total_length = np.sum(lengths) + spacing[axis] * (shape_axis - 1)
+    total_length = lengths.sum() + spacing[axis] * (shape_axis - 1)
     if round_to_even[axis] and total_length % 2 == 1:
       lengths[-1] += 1  # Lengthen the last slice so the axis dimension is even.
     axis_lengths.append(lengths)
@@ -1202,7 +1202,7 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
     spaced_lengths = np.insert(lengths, 0, 0)
     spaced_lengths[1:-1] += spacing[axis]
     # Compute slice positions along axis as cumulative sums of slice lengths.
-    axis_origins.append(np.cumsum(spaced_lengths))
+    axis_origins.append(spaced_lengths.cumsum())
 
   # [shape] -> smallest corner coords in output array.
   origins = np.moveaxis(np.meshgrid(*axis_origins, indexing='ij'), 0, -1)
