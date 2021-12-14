@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.7'
+__version__ = '0.5.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -238,7 +238,7 @@ def only(iterable: Iterable[_T]) -> _T:
   ...
   StopIteration
   """
-  # return (lambda x: x)(*iterable)
+  # Or use: return (lambda x: x)(*iterable)
   iterator = iter(iterable)
   first = next(iterator)
   missing = object()
