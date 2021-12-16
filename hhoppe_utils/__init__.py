@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.8'
+__version__ = '0.5.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -662,7 +662,7 @@ def diagnostic(a: Any) -> str:
           f' posinf={np.isposinf(a).sum()}'
           f' neginf={np.isneginf(a).sum()}'
           f' finite{repr(Stats(finite))[10:]}'
-          f' zero={np.sum(finite == 0)}')
+          f' zero={(finite == 0).sum()}')
 
 
 ## Stats
@@ -905,12 +905,14 @@ def grid_from_string(s: str,
   (array([[0, 0, 2],
          [2, 0, 1]], dtype=uint8), 6)
   """
+  # grid = np.array(list(map(list, s.strip('\n').split('\n'))))  # Slow.
   lines = s.strip('\n').splitlines()
   height, width = len(lines), len(lines[0])
   grid = np.empty((height, width), dtype='U1')
   dtype_for_row = f'U{width}'
   for i, line in enumerate(lines):
     grid[i].view(dtype_for_row)[0] = line
+
   if int_from_ch is None:
     assert dtype is None
   else:
