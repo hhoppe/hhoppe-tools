@@ -18,7 +18,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.9'
+__version__ = '0.5.10'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -744,7 +744,7 @@ class Stats:
     """
     assert not(kwargs and iterable)
     if not kwargs:
-      a = np.ravel(list(iterable))
+      a = np.array(list(iterable))
       kwargs = {
           'size': a.size,
           'sum': a.sum(),
@@ -1025,6 +1025,15 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
   array([[b'A', b' ', b' '],
          [b' ', b' ', b'B'],
          [b' ', b'C', b' ']], dtype='|S1')
+
+  >>> grid_from_indices({(0, 0): (255, 1, 2), (1, 2): (3, 255, 4)})
+  array([[[255,   1,   2],
+          [  0,   0,   0],
+          [  0,   0,   0]],
+  <BLANKLINE>
+         [[  0,   0,   0],
+          [  0,   0,   0],
+          [  3, 255,   4]]])
   """
   assert isinstance(iterable_or_map, collections.abc.Iterable)
   is_map = False
@@ -1032,7 +1041,7 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
     is_map = True
     mapping: Mapping[Sequence[int], Any] = iterable_or_map
 
-  indices = np.asarray(list(iterable_or_map))
+  indices = np.array(list(iterable_or_map))
   if indices.ndim == 1:
     indices = indices[:, None]
   assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
@@ -1045,8 +1054,10 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
   a_pad = np.asarray(pad)
   shape = i_max - i_min + 2 * a_pad + 1
   offset = -i_min + a_pad
-  if is_map:
-    dtype = np.array([next(iter(mapping.values()))], dtype=dtype).dtype
+  elems = [next(iter(mapping.values()))] if is_map and mapping else []
+  elems += [background, foreground]
+  shape = (*shape, *np.broadcast(*elems).shape)
+  dtype = np.array(elems[0], dtype=dtype).dtype
   grid = np.full(shape, background, dtype=dtype)
   indices += offset
   grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
@@ -1073,8 +1084,8 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
           [  3, 200,   4]]], dtype=uint8)
   """
   array = grid_from_indices(map_yx_value, background=background, pad=pad)
-  image = np.array([cmap[e] for e in array.ravel()], dtype=np.uint8)
-  image = image.reshape(*array.shape, 3)
+  image = np.array([cmap[e] for e in array.flat], dtype=np.uint8).reshape(
+      *array.shape, 3)
   return image
 
 
