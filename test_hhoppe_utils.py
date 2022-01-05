@@ -40,3 +40,9 @@ def test_union_find() -> None:
   hh.check_eq(union_find.same(12, 23), True)
   hh.check_eq(union_find.same(12, 35), True)
   hh.check_eq(union_find.same(23, 35), True)
+
+def test_celltimer_is_noop_outside_notebook(capfd):
+  hh.start_timing_notebook_cells()
+  hh.show_notebook_cell_top_times()
+  captured = capfd.readouterr()
+  assert captured.out == ''

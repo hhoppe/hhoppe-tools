@@ -19,7 +19,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.12'
+__version__ = '0.5.13'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -234,16 +234,17 @@ class _CellTimer:
   instance: Optional['_CellTimer'] = None
 
   def __init__(self) -> None:
+    import IPython  # type:ignore
     self.elapsed_times: Dict[int, float] = {}
     self.start()
-    self.get_ipython = globals()['get_ipython']
-    self.get_ipython().events.register('pre_run_cell', self.start)
-    self.get_ipython().events.register('post_run_cell', self.stop)
+    IPython.get_ipython().events.register('pre_run_cell', self.start)
+    IPython.get_ipython().events.register('post_run_cell', self.stop)
 
   def close(self) -> None:
     """Destroy the _CellTimer and its notebook callbacks."""
-    self.get_ipython().events.unregister('pre_run_cell', self.start)
-    self.get_ipython().events.unregister('post_run_cell', self.stop)
+    import IPython
+    IPython.get_ipython().events.unregister('pre_run_cell', self.start)
+    IPython.get_ipython().events.unregister('post_run_cell', self.stop)
 
   def start(self) -> None:
     """Start a timer for the notebook cell execution."""
@@ -251,17 +252,23 @@ class _CellTimer:
 
   def stop(self) -> None:
     """Start the timer for the notebook cell execution."""
+    import IPython
     elapsed_time = time.monotonic() - self.start_time
-    input_index = self.get_ipython().execution_count
+    input_index = IPython.get_ipython().execution_count
     self.elapsed_times[input_index] = elapsed_time
 
   def show_times(self, n: Optional[int] = None, sort: bool = False) -> None:
     """Print notebook cell timings."""
+    import IPython
     print(f'Total time: {sum(self.elapsed_times.values()):.2f} s')
     times = list(self.elapsed_times.items())
     times = sorted(times, key=lambda x: x[sort], reverse=sort)
+    session = 1
+    # https://github.com/ipython/ipython/blob/master/IPython/core/history.py
+    history_range = IPython.get_ipython().history_manager.get_range(session)
+    inputs = {index: s for unused_session, index, s in history_range}
     for input_index, elapsed_time in itertools.islice(times, n):
-      cell_input = globals()['In'][input_index]
+      cell_input = inputs[input_index]
       print(f'In[{input_index:3}] {cell_input!r:60.60} {elapsed_time:6.3f} s')
 
 
@@ -270,7 +277,8 @@ def start_timing_notebook_cells() -> None:
 
   Place in an early notebook cell.  See also `show_notebook_cell_top_times`.
   """
-  if 'get_ipython' in globals():
+  import IPython
+  if IPython.get_ipython():
     if _CellTimer.instance:
       _CellTimer.instance.close()
     _CellTimer.instance = _CellTimer()
@@ -414,13 +422,13 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
 # https://github.com/python/cpython/blob/master/Lib/collections/__init__.py
 
 
-def create_module(module_name: str,
-                  functions: Iterable[Callable[[Any], Any]] = (),
-                  ) -> Any:
+def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
   """Returns a new empty module (not associated with any file).
 
   >>> def some_function(*args, **kwargs): return 'success'
-  >>> test_module = create_module('test_module', [some_function])
+  >>> class Node:
+  ...   def __init__(self): self.attrib = 2
+  >>> test_module = create_module('test_module', [some_function, Node])
   >>> test_module.some_function(10)
   'success'
   >>> assert 'some_function' in dir(test_module)
@@ -429,6 +437,11 @@ def create_module(module_name: str,
   <BLANKLINE>
   some_function(*args, **kwargs)
   <BLANKLINE>
+  >>> node = test_module.Node()
+  >>> type(node)
+  <class 'test_module.Node'>
+  >>> node.attrib
+  2
   """
   # https://stackoverflow.com/a/53080237/1190077
   module = sys.modules.get(module_name)
@@ -438,9 +451,9 @@ def create_module(module_name: str,
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
 
-  for function in functions:
-    setattr(module, function.__name__, function)
-    function.__module__ = module_name
+  for element in elements:
+    setattr(module, element.__name__, element)
+    element.__module__ = module_name
 
   return module
 
