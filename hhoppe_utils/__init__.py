@@ -4,8 +4,9 @@
 
 Useful commands for testing and polish:
 
-bash -c 'f=hhoppe_utils.py; env python3 $f; env mypy --strict "$f" && autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; echo All ran.'
+bash -c 'f=__init__.py; env python3 $f; env mypy --strict "$f" && autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; false && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; env pytest ..; echo All ran.'
 
+env pytest --doctest-modules ..
 env python3 -m doctest -v hhoppe_utils.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 hhoppe_utils.py
 env mypy --strict hhoppe_utils.py
@@ -18,7 +19,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.11'
+__version__ = '0.5.12'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -141,6 +142,8 @@ def dump_vars(*args: Any) -> str:
   'b = Hello'
   >>> dump_vars(a, b, (a * 2) + 5, b + ' there')
   "a = 45, b = Hello, (a * 2) + 5 = 95, b + ' there' = Hello there"
+  >>> dump_vars([3, 4, 5][1])
+  '[3, 4, 5][1] = 4'
   """
 
   def matching_parenthesis(text: str) -> int:
@@ -178,7 +181,9 @@ def dump_vars(*args: Any) -> str:
       # Because the call is made using a *args, we continue to
       # the earlier caller in the stack trace.
     else:
-      if hasattr(ast, 'get_source_segment'):  # Python 3.8.
+      if len(args) == 1:
+        expressions = [parameter_string.strip()]
+      elif hasattr(ast, 'get_source_segment'):  # Python 3.8.
         node = ast.parse(parameter_string)
         # print(ast.dump(node))  # ", indent=2" requires Python 3.9.
         value = getattr(node.body[0], 'value', '?')
@@ -217,6 +222,67 @@ def show(*args: Any) -> None:
   'a = <string>, literal_string, s, a * 2 = <string><string>, 34 // 3 = 11\n'
   """
   print_err(dump_vars(*args))
+
+
+## Jupyter/IPython notebook functionality
+
+
+class _CellTimer:
+  """Record timings of all notebook cells and show top entries at the end."""
+  # Inspired from https://github.com/cpcloud/ipython-autotime.
+
+  instance: Optional['_CellTimer'] = None
+
+  def __init__(self) -> None:
+    self.elapsed_times: Dict[int, float] = {}
+    self.start()
+    self.get_ipython = globals()['get_ipython']
+    self.get_ipython().events.register('pre_run_cell', self.start)
+    self.get_ipython().events.register('post_run_cell', self.stop)
+
+  def close(self) -> None:
+    """Destroy the _CellTimer and its notebook callbacks."""
+    self.get_ipython().events.unregister('pre_run_cell', self.start)
+    self.get_ipython().events.unregister('post_run_cell', self.stop)
+
+  def start(self) -> None:
+    """Start a timer for the notebook cell execution."""
+    self.start_time = time.monotonic()
+
+  def stop(self) -> None:
+    """Start the timer for the notebook cell execution."""
+    elapsed_time = time.monotonic() - self.start_time
+    input_index = self.get_ipython().execution_count
+    self.elapsed_times[input_index] = elapsed_time
+
+  def show_times(self, n: Optional[int] = None, sort: bool = False) -> None:
+    """Print notebook cell timings."""
+    print(f'Total time: {sum(self.elapsed_times.values()):.2f} s')
+    times = list(self.elapsed_times.items())
+    times = sorted(times, key=lambda x: x[sort], reverse=sort)
+    for input_index, elapsed_time in itertools.islice(times, n):
+      cell_input = globals()['In'][input_index]
+      print(f'In[{input_index:3}] {cell_input!r:60.60} {elapsed_time:6.3f} s')
+
+
+def start_timing_notebook_cells() -> None:
+  """Start timing of Jupyter notebook cells.
+
+  Place in an early notebook cell.  See also `show_notebook_cell_top_times`.
+  """
+  if 'get_ipython' in globals():
+    if _CellTimer.instance:
+      _CellTimer.instance.close()
+    _CellTimer.instance = _CellTimer()
+
+
+def show_notebook_cell_top_times() -> None:
+  """Print summary of timings for Jupyter notebook cells.
+
+  Place in a late notebook cell.  See also `start_timing_notebook_cells`.
+  """
+  if _CellTimer.instance:
+    _CellTimer.instance.show_times(n=20, sort=True)
 
 
 ## Operations on iterables
@@ -763,26 +829,48 @@ class Stats:
     raise TypeError(f'Frozen: cannot delete field \'{args[0]}\'')
 
   def avg(self) -> float:
-    """Returns the average."""
+    """Returns the average.
+
+    >>> Stats([1, 1, 4]).avg()
+    2.0
+    """
     return self.sum / self.size if self.size else math.nan
 
   def ssd(self) -> float:
-    """Returns the sum of squared deviations."""
+    """Returns the sum of squared deviations.
+
+    >>> Stats([1, 1, 4]).ssd()
+    6.0
+    """
     return (math.nan if self.size == 0 else
             max(self.sum2 - self.sum**2 / self.size, 0))
 
   def var(self) -> float:
-    """Returns the unbiased estimate of variance, as in np.var(a, ddof=1)."""
+    """Returns the unbiased estimate of variance, as in np.var(a, ddof=1).
+
+    >>> Stats([1, 1, 4]).var()
+    3.0
+    """
     return (math.nan if self.size == 0 else
             0.0 if self.size == 1 else
             self.ssd() / (self.size - 1))
 
   def sdv(self) -> float:
-    """Returns the unbiased standard deviation as in np.std(a, ddof=1)."""
+    """Returns the unbiased standard deviation as in np.std(a, ddof=1).
+
+    >>> Stats([1, 1, 4]).sdv()
+    1.7320508075688772
+    """
     return self.var()**0.5
 
   def rms(self) -> float:
-    """Returns the root-mean-square."""
+    """Returns the root-mean-square.
+
+    >>> Stats([1, 1, 4]).rms()
+    2.449489742783178
+    >>> Stats([-1, 1]).rms()
+    1.0
+    """
     return 0.0 if self.size == 0 else (self.sum2 / self.size)**0.5
 
   def __eq__(self, other: object) -> bool:
@@ -1348,19 +1436,6 @@ def shift(array: Any, offset: Any, constant_values: Any = 0) -> np.ndarray:
   return new_array
 
 
-# def test_shift() -> None:
-#   for offset1 in range(-4, 4):
-#     print(offset1, shift(range(3), offset1, -1))
-#   for offset2 in itertools.product(range(-4, 5), repeat=2):
-#     print(offset2)
-#     print(shift(np.arange(12).reshape(3, 4), offset2, -1))
-
-# neighbors = np.array([shift(grid, -dyx, constant_values=10) for dyx in dyxs])
-# t = np.pad(grid, 1, constant_values=10)
-# neighbors = np.array([t[1 + dyx[0]:, 1 + dyx[1]:]
-#                       [:grid.shape[0], :grid.shape[1]] for dyx in dyxs])
-
-
 ## Graph algorithms
 
 
@@ -1402,7 +1477,8 @@ class UnionFind:
 
   def same(self, a: Any, b: Any) -> bool:
     """Returns whether a and b are in the same equivalence class."""
-    return self.find(a) is self.find(b)
+    result: bool = self.find(a) == self.find(b)
+    return result
 
   def find(self, a: Any) -> Any:
     """Returns a representative for the class of a; valid until next union()."""
