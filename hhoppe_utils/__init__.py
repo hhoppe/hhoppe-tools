@@ -40,7 +40,7 @@ import tempfile  # pylint:disable=unused-import
 import time
 import traceback
 import typing
-from typing import Any, Callable, Generator, Iterable
+from typing import Any, Callable, Dict, Generator, Iterable
 from typing import Iterator, List, Mapping, Optional, Sequence
 from typing import Tuple, TypeVar, Union
 import unittest.mock as mock  # pylint: disable=unused-import
@@ -632,6 +632,7 @@ def modular_inverse(a: int, b: int) -> int:
   >>> (29 * 49) % 71
   1
   """
+  # Note: This becomes available as "pow(a, -1, mod=b)" in Python 3.8.
   gcd, x, unused_y = extended_gcd(a, b)
   check_eq(gcd, 1)
   return x % b
@@ -665,7 +666,7 @@ def diagnostic(a: Any) -> str:
           f' zero={(finite == 0).sum()}')
 
 
-## Stats
+## Statistics
 
 
 class Stats:
@@ -860,6 +861,81 @@ def array_always(a: Any) -> np.ndarray:
   if isinstance(a, collections.abc.Iterator):
     return np.array(tuple(a))
   return np.asarray(a)
+
+
+def bounding_slices(a: Any) -> Tuple[slice, ...]:
+  """Returns the slices that bound the nonzero elements of array.
+
+  >>> bounding_slices(())
+  (slice(0, 0, None),)
+
+  >>> bounding_slices(np.ones(0))
+  (slice(0, 0, None),)
+
+  >>> bounding_slices(np.ones((0, 10)))
+  (slice(0, 0, None), slice(0, 0, None))
+
+  >>> bounding_slices(32.0)
+  (slice(0, 1, None),)
+
+  >>> bounding_slices([0.0, 0.0, 0.0, 0.5, 1.5, 0.0, 2.5, 0.0, 0.0])
+  (slice(3, 7, None),)
+
+  >>> a = np.array([0, 0, 6, 7, 0, 0])
+  >>> a[bounding_slices(a)]
+  array([6, 7])
+
+  >>> a = np.array([[0, 0, 0], [0, 1, 1], [0, 0, 0]])
+  >>> a[bounding_slices(a)]
+  array([[1, 1]])
+
+  >>> bounding_slices([[[0, 0], [0, 1]], [[0, 0], [0, 0]]])
+  (slice(0, 1, None), slice(1, 2, None), slice(1, 2, None))
+  """
+  a = np.atleast_1d(a)
+  slices = []
+  for dim in range(a.ndim):
+    line = a.any(axis=tuple(i for i in range(a.ndim) if i != dim))
+    indices = line.nonzero()[0]
+    if indices.size:
+      vmin, vmax = indices[[0, -1]]
+      slices.append(slice(vmin, vmax + 1))
+    else:
+      slices.append(slice(0, 0))  # Empty slice.
+  return tuple(slices)
+
+
+def broadcast_block(a: Any, block_shape: Any) -> np.ndarray:
+  """Returns an array view where each element of 'a' is repeated as a block.
+
+  Args:
+    a: input array of any dimension.
+    block_shape: shape for the block that each element of 'a' becomes.  If a
+      scalar value, all block dimensions are assigned this value.
+
+  Returns:
+    an array view with shape "a.shape * block_shape".
+
+  >>> print(broadcast_block(np.arange(8).reshape(2, 4), (2, 3)))
+  [[0 0 0 1 1 1 2 2 2 3 3 3]
+   [0 0 0 1 1 1 2 2 2 3 3 3]
+   [4 4 4 5 5 5 6 6 6 7 7 7]
+   [4 4 4 5 5 5 6 6 6 7 7 7]]
+
+  >>> a = np.arange(6).reshape(2, 3)
+  >>> result = broadcast_block(a, (2, 3))
+  >>> result.shape
+  (4, 9)
+  >>> np.all(result == np.kron(a, np.ones((2, 3), dtype=a.dtype)))
+  True
+  """
+  block_shape = np.broadcast_to(block_shape, (a.ndim,))
+  # Inspired from https://stackoverflow.com/a/52339952
+  # and https://stackoverflow.com/a/52346065.
+  shape1 = tuple(v for pair in zip(a.shape, (1,) * a.ndim) for v in pair)
+  shape2 = tuple(v for pair in zip(a.shape, block_shape) for v in pair)
+  final_shape = a.shape * block_shape
+  return np.broadcast_to(a.reshape(shape1), shape2).reshape(final_shape)
 
 
 def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
@@ -1084,8 +1160,9 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
           [  3, 200,   4]]], dtype=uint8)
   """
   array = grid_from_indices(map_yx_value, background=background, pad=pad)
-  image = np.array([cmap[e] for e in array.flat], dtype=np.uint8).reshape(
-      *array.shape, 3)
+  image = np.array([
+      cmap[e] for e in array.flat  # pylint: disable=not-an-iterable
+  ], dtype=np.uint8).reshape(*array.shape, 3)
   return image
 
 
@@ -1284,7 +1361,66 @@ def shift(array: Any, offset: Any, constant_values: Any = 0) -> np.ndarray:
 #                       [:grid.shape[0], :grid.shape[1]] for dyx in dyxs])
 
 
-## General I/O.
+## Graph algorithms
+
+
+class UnionFind:
+  """Union-find is an efficient technique for tracking equivalence classes as
+  pairs of elements are incrementally unified into the same class. See
+  https://en.wikipedia.org/wiki/Disjoint-set_data_structure .
+  The implementation uses path compression but without weight-balancing, so the
+  worst case time complexity is O(n*log(n)), but the average case is O(n).
+
+  >>> union_find = UnionFind()
+  >>> union_find.find(1)
+  1
+  >>> union_find.find('hello')
+  'hello'
+  >>> union_find.same('hello', 'hello')
+  True
+  >>> union_find.same('hello', 'different')
+  False
+  >>> union_find.union('hello', 'there')
+  >>> union_find.find('hello')
+  'hello'
+  >>> union_find.find('there')
+  'hello'
+  >>> union_find.same('hello', 'there')
+  True
+  >>> union_find.union('there', 'here')
+  >>> union_find.same('hello', 'here')
+  True
+  """
+
+  def __init__(self) -> None:
+    self._rep: Dict[Any, Any] = {}
+
+  def union(self, a: Any, b: Any) -> None:
+    """Merge the equivalence class of b into that of a."""
+    rep_a, rep_b = self.find(a), self.find(b)
+    self._rep[rep_b] = rep_a
+
+  def same(self, a: Any, b: Any) -> bool:
+    """Returns whether a and b are in the same equivalence class."""
+    return self.find(a) is self.find(b)
+
+  def find(self, a: Any) -> Any:
+    """Returns a representative for the class of a; valid until next union()."""
+    if a not in self._rep:
+      return a
+    parents = []
+    while True:
+      parent = self._rep.setdefault(a, a)
+      if parent == a:
+        break
+      parents.append(a)
+      a = parent
+    for p in parents:
+      self._rep[p] = a
+    return a
+
+
+## General I/O
 
 
 def write_contents(path: str, data: Union[str, bytes]) -> None:

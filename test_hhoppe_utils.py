@@ -1,5 +1,7 @@
-import hhoppe_utils as hh
+#!/usr/bin/env python3
+"""Tests for hhoppe_utils module."""
 import numpy as np  # type: ignore
+import hhoppe_utils as hh
 
 
 def test_string_grid_string_roundtrip() -> None:
@@ -21,3 +23,20 @@ def test_string_grid_string_roundtrip() -> None:
   s2 = hh.string_from_grid(g)
   hh.check_eq(s2, s.strip())
 
+
+def test_union_find() -> None:
+  union_find = hh.UnionFind()
+  hh.check_eq(union_find.same(12, 12), True)
+  hh.check_eq(union_find.same(12, 23), False)
+  hh.check_eq(union_find.same(12, 35), False)
+  hh.check_eq(union_find.same(23, 35), False)
+  union_find.union(12, 23)
+  hh.check_eq(union_find.same(12, 12), True)
+  hh.check_eq(union_find.same(12, 23), True)
+  hh.check_eq(union_find.same(12, 35), False)
+  hh.check_eq(union_find.same(23, 35), False)
+  union_find.union(23, 35)
+  hh.check_eq(union_find.same(12, 12), True)
+  hh.check_eq(union_find.same(12, 23), True)
+  hh.check_eq(union_find.same(12, 35), True)
+  hh.check_eq(union_find.same(23, 35), True)
