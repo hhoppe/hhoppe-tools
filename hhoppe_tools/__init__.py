@@ -19,7 +19,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -42,7 +42,7 @@ import time
 import traceback
 import typing
 from typing import Any, Callable, Dict, Generator, Iterable
-from typing import Iterator, List, Mapping, Optional, Sequence
+from typing import Iterator, List, Mapping, Optional, Sequence, Set
 from typing import Tuple, TypeVar, Union
 import unittest.mock as mock  # pylint: disable=unused-import
 
@@ -296,6 +296,19 @@ def show_notebook_cell_top_times() -> None:
 ## Operations on iterables
 
 
+def repeat_each(iterable: Iterable[_T], n: int) -> Iterator[_T]:
+  """Repeat each element of iterable 'n' times.
+
+  >>> list(repeat_each(list('abc'), 2))
+  ['a', 'a', 'b', 'b', 'c', 'c']
+
+  >>> ''.join(itertools.islice(repeat_each(itertools.cycle('abcd'), 4), 30))
+  'aaaabbbbccccddddaaaabbbbccccdd'
+  """
+  # https://stackoverflow.com/a/65071833
+  return itertools.chain.from_iterable(zip(*itertools.tee(iterable, n)))
+
+
 def only(iterable: Iterable[_T]) -> _T:
   """Returns the first element and asserts that there are no more.
 
@@ -326,7 +339,7 @@ def grouped(iterable: Iterable[_T],
             n: int,
             fillvalue: Optional[_T] = None,
             ) -> Iterator[Tuple[Optional[_T], ...]]:
-  """Returns elements collected into fixed-length chunks.  A.k.a. 'grouper'.
+  """Returns elements collected into fixed-length chunks.
 
   >>> list(grouped('ABCDEFG', 3, 'x'))
   [('A', 'B', 'C'), ('D', 'E', 'F'), ('G', 'x', 'x')]
@@ -339,7 +352,11 @@ def grouped(iterable: Iterable[_T],
 
   >>> list(grouped(range(6), 3))
   [(0, 1, 2), (3, 4, 5)]
+
+  >>> list(grouped([], 2))
+  []
   """
+  # From grouper() in https://docs.python.org/3/library/itertools.html.
   iters = [iter(iterable)] * n
   return itertools.zip_longest(*iters, fillvalue=fillvalue)
 
@@ -357,6 +374,9 @@ def chunked(iterable: Iterable[_T],
 
   >>> list(chunked(range(5)))
   [(0, 1, 2, 3, 4)]
+
+  >>> list(chunked([]))
+  []
   """
 
   def take(n: int, iterable: Iterable[_T]) -> Tuple[_T, ...]:
@@ -381,6 +401,7 @@ def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
   >>> list(sliding_window('', 1))
   []
   """
+  # From https://docs.python.org/3/library/itertools.html.
   it = iter(iterable)
   window = collections.deque(itertools.islice(it, n), maxlen=n)
   if len(window) == n:
@@ -388,6 +409,21 @@ def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
   for x in it:
     window.append(x)
     yield tuple(window)
+
+
+def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
+  """Returns all subsets of iterable.
+
+  >>> list(powerset([1, 2, 3]))
+  [(), (1,), (2,), (3,), (1, 2), (1, 3), (2, 3), (1, 2, 3)]
+
+  >>> list(powerset([]))
+  [()]
+  """
+  # From https://docs.python.org/3/library/itertools.html.
+  s = list(iterable)
+  return itertools.chain.from_iterable(
+      itertools.combinations(s, r) for r in range(len(s) + 1))
 
 
 def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
@@ -1532,6 +1568,90 @@ class UnionFind:
     for p in parents:
       self._rep[p] = a
     return a
+
+
+def topological_sort(graph: Mapping[_T, Sequence[_T]],
+                     cycle_check: bool = False) -> List[_T]:
+  """Given a dag (directed acyclic graph), returns a list of graph nodes such
+  that for every directed edge (u, v) in the graph, u is before v in the list.
+  See https://en.wikipedia.org/wiki/Topological_sorting and
+  https://stackoverflow.com/a/47234034/.
+
+  >>> graph = {
+  ...    'A': ['ORE'],
+  ...    'B': ['ORE'],
+  ...    'C': ['A', 'B'],
+  ...    'D': ['A', 'C'],
+  ...    'E': ['A', 'D'],
+  ...    'FUEL': ['A', 'E'],
+  ...    'ORE': [],
+  ... }
+  >>> topological_sort(graph, cycle_check=True)
+  ['FUEL', 'E', 'D', 'C', 'A', 'B', 'ORE']
+
+  >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
+  >>> topological_sort(graph)
+  [1, 2, 3, 4]
+  """
+  if sys.version_info > (3, 9):
+    import graphlib  # pylint: disable=import-error
+    return list(graphlib.TopologicalSorter(graph).static_order())
+
+  result = []
+  seen = set()
+
+  def recurse(node: _T) -> None:
+    for dependent in reversed(graph[node]):
+      if dependent not in seen:
+        seen.add(dependent)
+        recurse(dependent)
+    result.append(node)
+
+  all_dependents: Set[_T] = set()
+  all_dependents.update(*graph.values())
+  for node in reversed(list(graph)):  # (reversed(graph) in Python 3.8).
+    if node not in all_dependents:
+      recurse(node)
+
+  if cycle_check:
+    position = {node: i for i, node in enumerate(result)}
+    for node, dependents in graph.items():
+      for dependent in dependents:
+        if position[node] < position[dependent]:
+          raise ValueError('Graph contains a cycle')
+
+  return result[::-1]
+
+
+## Search algorithms
+
+
+def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
+                           y_desired: Any) -> Any:
+  """Returns x such that feval(x) <= y_desired < feval(x + 1),
+
+  Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
+
+  >>> discrete_binary_search(lambda x: x**2, 0, 20, 15)
+  3
+  >>> discrete_binary_search(lambda x: x**2, 0, 20, 16)
+  4
+  >>> discrete_binary_search(lambda x: x**2, 0, 20, 17)
+  4
+  >>> discrete_binary_search(lambda x: x**2, 0, 20, 24)
+  4
+  >>> discrete_binary_search(lambda x: x**2, 0, 20, 25)
+  5
+  """
+  assert xl < xh
+  while xh - xl > 1:
+    xm = (xl + xh) // 2
+    ym = feval(xm)
+    if y_desired >= ym:
+      xl = xm
+    else:
+      xh = xm
+  return xl
 
 
 ## General I/O
