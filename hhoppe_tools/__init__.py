@@ -1595,7 +1595,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
   """
   if sys.version_info > (3, 9):
     import graphlib  # pylint: disable=import-error
-    return list(graphlib.TopologicalSorter(graph).static_order())
+    return list(graphlib.TopologicalSorter(graph).static_order())[::-1]
 
   result = []
   seen = set()
