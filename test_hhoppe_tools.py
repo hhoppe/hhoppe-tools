@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for hhoppe_utils module."""
+"""Tests for hhoppe_tools module."""
 import numpy as np  # type: ignore
 import hhoppe_tools as hh
 

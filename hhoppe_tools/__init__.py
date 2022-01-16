@@ -7,13 +7,13 @@ Useful commands for testing and polish:
 bash -c 'f=__init__.py; env python3 $f; env mypy --strict "$f" && autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; false && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; env pytest ..; echo All ran.'
 
 env pytest --doctest-modules ..
-env python3 -m doctest -v hhoppe_utils.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
-hhoppe_utils.py
-env mypy --strict hhoppe_utils.py
-bash -c "autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 hhoppe_utils.py >~/tmp/v && ediff hhoppe_utils.py ~/tmp/v"
-bash -c 'pylint --indent-string="  " --disable=C0103,C0302,C0415,R0201,R0902,R0903,R0913,R0914 hhoppe_utils.py'
-bash -c "pydoc3 ~/bin/hhoppe_utils.py"  # Print module help
-gpylint hhoppe_utils.py
+env python3 -m doctest -v hhoppe_tools.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
+hhoppe_tools.py
+env mypy --strict hhoppe_tools.py
+bash -c "autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 hhoppe_tools.py >~/tmp/v && ediff hhoppe_tools.py ~/tmp/v"
+bash -c 'pylint --indent-string="  " --disable=C0103,C0302,C0415,R0201,R0902,R0903,R0913,R0914 hhoppe_tools.py'
+bash -c "pydoc3 ~/bin/hhoppe_tools.py"  # Print module help
+gpylint hhoppe_tools.py
 
 # pylint: enable=line-too-long
 """
