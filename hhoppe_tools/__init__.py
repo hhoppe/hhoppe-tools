@@ -1577,21 +1577,12 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
   See https://en.wikipedia.org/wiki/Topological_sorting and
   https://stackoverflow.com/a/47234034/.
 
-  >>> graph = {
-  ...    'A': ['ORE'],
-  ...    'B': ['ORE'],
-  ...    'C': ['A', 'B'],
-  ...    'D': ['A', 'C'],
-  ...    'E': ['A', 'D'],
-  ...    'FUEL': ['A', 'E'],
-  ...    'ORE': [],
-  ... }
-  >>> topological_sort(graph, cycle_check=True)
-  ['FUEL', 'E', 'D', 'C', 'A', 'B', 'ORE']
-
   >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
   >>> topological_sort(graph)
   [1, 2, 3, 4]
+
+  >>> topological_sort({2: [3], 3: [4, 5], 1: [2], 4: [5], 5: []})
+  [1, 2, 3, 4, 5]
   """
   if sys.version_info > (3, 9):
     import graphlib  # pylint: disable=import-error
