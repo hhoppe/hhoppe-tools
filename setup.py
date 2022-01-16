@@ -1,7 +1,7 @@
 import pathlib
 import setuptools
 
-NAME = 'hhoppe-utils'
+NAME = 'hhoppe-tools'
 
 def get_version(package=None):
   if package is None:

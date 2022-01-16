@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for hhoppe_utils module."""
 import numpy as np  # type: ignore
-import hhoppe_utils as hh
+import hhoppe_tools as hh
 
 
 def test_string_grid_string_roundtrip() -> None:
