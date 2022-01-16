@@ -19,7 +19,7 @@ gpylint hhoppe_utils.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.5.13'
+__version__ = '0.6.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -363,6 +363,31 @@ def chunked(iterable: Iterable[_T],
     return tuple(itertools.islice(iterable, n))
 
   return iter(functools.partial(take, n, iter(iterable)), ())
+
+
+def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
+  """Returns overlapping tuples of length `n` from `iterable`.
+
+  >>> list(sliding_window('ABCDEF', 4))
+  [('A', 'B', 'C', 'D'), ('B', 'C', 'D', 'E'), ('C', 'D', 'E', 'F')]
+
+  >>> list(sliding_window('ABCDE', 1))
+  [('A',), ('B',), ('C',), ('D',), ('E',)]
+
+  >>> list(sliding_window('ABCDE', 8))
+  []
+  >>> list(sliding_window('A', 2))
+  []
+  >>> list(sliding_window('', 1))
+  []
+  """
+  it = iter(iterable)
+  window = collections.deque(itertools.islice(it, n), maxlen=n)
+  if len(window) == n:
+    yield tuple(window)
+  for x in it:
+    window.append(x)
+    yield tuple(window)
 
 
 def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
