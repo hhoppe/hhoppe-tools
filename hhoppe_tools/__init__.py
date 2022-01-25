@@ -263,8 +263,9 @@ class _CellTimer:
     print(f'Total time: {sum(self.elapsed_times.values()):.2f} s')
     times = list(self.elapsed_times.items())
     times = sorted(times, key=lambda x: x[sort], reverse=sort)
-    session = 1
     # https://github.com/ipython/ipython/blob/master/IPython/core/history.py
+    # https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.history.html
+    session = IPython.get_ipython().history_manager.session_number
     history_range = IPython.get_ipython().history_manager.get_range(session)
     inputs = {index: s for unused_session, index, s in history_range}
     for input_index, elapsed_time in itertools.islice(times, n):
