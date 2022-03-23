@@ -44,7 +44,7 @@ import typing
 from typing import Any, Callable, Dict, Generator, Iterable
 from typing import Iterator, List, Mapping, Optional, Sequence, Set
 from typing import Tuple, TypeVar, Union
-import unittest  # pylint: disable=unused-import
+import unittest.mock  # pylint: disable=unused-import
 
 import numpy as np  # type: ignore
 
