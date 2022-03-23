@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.4'
+__version__ = '0.6.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -44,7 +44,7 @@ import typing
 from typing import Any, Callable, Dict, Generator, Iterable
 from typing import Iterator, List, Mapping, Optional, Sequence, Set
 from typing import Tuple, TypeVar, Union
-import unittest.mock as mock  # pylint: disable=unused-import
+import unittest  # pylint: disable=unused-import
 
 import numpy as np  # type: ignore
 
@@ -109,7 +109,7 @@ def check_eq(a: Any, b: Any, message: Any = None) -> None:
 def print_err(*args: str, **kwargs: Any) -> None:
   r"""Prints arguments to stderr immediately.
 
-  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
   ...   print_err('hello')
   ...   print(repr(m.getvalue()))
   'hello\n'
@@ -210,12 +210,12 @@ def show(*args: Any) -> None:
     *args: Expressions to show.
     **kwargs: Keyword arguments passed to print_err().
 
-  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
   ...   show(4 * 3)
   ...   print(repr(m.getvalue()))
   '4 * 3 = 12\n'
 
-  >>> with mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
   ...   a ='<string>'
   ...   show(a, 'literal_string', "s", a * 2, 34 // 3)
   ...   print(repr(m.getvalue()))
@@ -814,7 +814,7 @@ class Stats:
   r"""Immutable statistics computed from some numbers.
 
   >>> Stats([])
-  Stats(size=0, min=nan, max=nan, avg=nan, sdv=nan)
+  Stats(size=0, min=inf, max=-inf, avg=nan, sdv=nan)
 
   >>> Stats([1.5])
   Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
@@ -832,9 +832,9 @@ class Stats:
   (       55)            0 : 54           av=27.0000      sd=16.0208
 
   >>> print(Stats())
-  (        0)          nan : nan          av=nan          sd=nan
+  (        0)          inf : -inf         av=nan          sd=nan
 
-  >>> str(Stats([3.0]))
+  >>> str(Stats() + Stats([3.0]))
   '(        1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
 
   >>> print(f'{Stats([-12345., 2.0**20]):15.9}')
@@ -891,8 +891,8 @@ class Stats:
           'size': a.size,
           'sum': a.sum(),
           'sum2': np.square(a).sum(),
-          'min': a.min() if a.size > 0 else math.nan,
-          'max': a.max() if a.size > 0 else math.nan,
+          'min': a.min() if a.size > 0 else math.inf,
+          'max': a.max() if a.size > 0 else -math.inf,
       }
     for key in ('size', 'sum', 'sum2', 'min', 'max'):
       object.__setattr__(self, key, kwargs[key])
