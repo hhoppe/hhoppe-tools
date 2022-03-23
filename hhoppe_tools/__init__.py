@@ -19,12 +19,13 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.5'
+__version__ = '0.6.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
 import collections.abc
 import contextlib
+import dataclasses
 import doctest
 import functools
 import io  # pylint: disable=unused-import
@@ -803,61 +804,65 @@ def diagnostic(a: Any) -> str:
           f' nan={np.isnan(a).sum()}'
           f' posinf={np.isposinf(a).sum()}'
           f' neginf={np.isneginf(a).sum()}'
-          f' finite{repr(Stats(finite))[10:]}'
+          f' finite{repr(Stats.make(finite))[10:]}'
           f' zero={(finite == 0).sum()}')
 
 
 ## Statistics
 
 
+@dataclasses.dataclass(frozen=True)
 class Stats:
   r"""Immutable statistics computed from some numbers.
 
-  >>> Stats([])
+  >>> Stats.make([])
   Stats(size=0, min=inf, max=-inf, avg=nan, sdv=nan)
 
-  >>> Stats([1.5])
+  >>> Stats.make([1.5])
   Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
 
-  >>> Stats([3, 4])
+  >>> Stats(size=1, sum=1.5, sum2=1.5**2, min=1.5, max=1.5)
+  Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
+
+  >>> Stats.make([3, 4])
   Stats(size=2, min=3, max=4, avg=3.5, sdv=0.707107)
 
-  >>> Stats([3.0, 4.0])
+  >>> Stats.make([3.0, 4.0])
   Stats(size=2, min=3.0, max=4.0, avg=3.5, sdv=0.707107)
 
-  >>> Stats([-12345., 2.0**20])
+  >>> Stats.make([-12345., 2.0**20])
   Stats(size=2, min=-12345.0, max=1.04858e+06, avg=5.18116e+05, sdv=7.50184e+05)
 
-  >>> print(Stats(range(55)))
+  >>> print(Stats.make(range(55)))
   (       55)            0 : 54           av=27.0000      sd=16.0208
 
-  >>> print(Stats())
+  >>> print(Stats.make([]))
   (        0)          inf : -inf         av=nan          sd=nan
 
-  >>> str(Stats() + Stats([3.0]))
+  >>> str(Stats.make([]) + Stats.make([3.0]))
   '(        1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
 
-  >>> print(f'{Stats([-12345., 2.0**20]):15.9}')
+  >>> print(f'{Stats.make([-12345., 2.0**20]):15.9}')
   (        2)        -12345.0 : 1048576.0       av=518115.5        sd=750184.433
 
-  >>> print(f'{Stats([-12345., 2.0**20]):#10.4}')
+  >>> print(f'{Stats.make([-12345., 2.0**20]):#10.4}')
   (        2) -1.234e+04 : 1.049e+06  av=5.181e+05  sd=7.502e+05
 
-  >>> len(Stats([1, 2]))
+  >>> len(Stats.make([1, 2]))
   2
-  >>> Stats([-2, 2]).rms()
+  >>> Stats.make([-2, 2]).rms()
   2.0
 
-  >>> a = Stats([1, 2])
+  >>> a = Stats.make([1, 2])
   >>> a.min, a.max, a.avg()
   (1, 2, 1.5)
   >>> a.min = 0
   Traceback (most recent call last):
   ...
-  TypeError: Frozen: cannot assign to field 'min'
+  dataclasses.FrozenInstanceError: cannot assign to field 'min'
 
-  >>> stats1 = Stats([-3, 7])
-  >>> stats2 = Stats([1.25e11 / 3, -1_234_567_890])
+  >>> stats1 = Stats.make([-3, 7])
+  >>> stats2 = Stats.make([1.25e11 / 3, -1_234_567_890])
   >>> stats3 = stats1 + stats2 * 20_000_000
   >>> print(stats1, f'{stats2}', format(stats3), sep='\n')
   (        2)           -3 : 7            av=2.00000      sd=7.07107
@@ -870,43 +875,27 @@ class Stats:
   (        2) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=3.03e+10
   ( 40000002) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=2.15e+10
   """
-
   size: int
   sum: float
   sum2: float
-  min: Union[int, float]
-  max: Union[int, float]
+  min: float
+  max: float
 
-  def __init__(self, iterable: Iterable[Any] = (), **kwargs: Any) -> None:
-    """Computes statistics for numbers in iterable or initializes using kwargs.
-
-    Args:
-      iterable: Scalar values from which statistics are computed.
-      **kwargs: Direct initialization of statistics fields.
-    """
-    assert not(kwargs and iterable)
-    if not kwargs:
-      a = np.array(list(iterable))
-      kwargs = {
-          'size': a.size,
-          'sum': a.sum(),
-          'sum2': np.square(a).sum(),
-          'min': a.min() if a.size > 0 else math.inf,
-          'max': a.max() if a.size > 0 else -math.inf,
-      }
-    for key in ('size', 'sum', 'sum2', 'min', 'max'):
-      object.__setattr__(self, key, kwargs[key])
-
-  def __setattr__(self, *args: Any) -> None:
-    raise TypeError(f'Frozen: cannot assign to field \'{args[0]}\'')
-
-  def __delattr__(self, *args: Any) -> None:
-    raise TypeError(f'Frozen: cannot delete field \'{args[0]}\'')
+  @staticmethod
+  def make(iterable: Iterable[Any]) -> 'Stats':
+    """Returns statistics for numbers in iterable."""
+    l = list(iterable)
+    if not l:
+      return Stats(0, 0, 0, math.inf, -math.inf)
+    a = np.array(l)
+    return Stats(a.size, a.sum(), np.square(a).sum(),
+                 a.min() if a.size > 0 else math.inf,
+                 a.max() if a.size > 0 else -math.inf)
 
   def avg(self) -> float:
     """Returns the average.
 
-    >>> Stats([1, 1, 4]).avg()
+    >>> Stats.make([1, 1, 4]).avg()
     2.0
     """
     return self.sum / self.size if self.size else math.nan
@@ -914,7 +903,7 @@ class Stats:
   def ssd(self) -> float:
     """Returns the sum of squared deviations.
 
-    >>> Stats([1, 1, 4]).ssd()
+    >>> Stats.make([1, 1, 4]).ssd()
     6.0
     """
     return (math.nan if self.size == 0 else
@@ -923,7 +912,7 @@ class Stats:
   def var(self) -> float:
     """Returns the unbiased estimate of variance, as in np.var(a, ddof=1).
 
-    >>> Stats([1, 1, 4]).var()
+    >>> Stats.make([1, 1, 4]).var()
     3.0
     """
     return (math.nan if self.size == 0 else
@@ -933,7 +922,7 @@ class Stats:
   def sdv(self) -> float:
     """Returns the unbiased standard deviation as in np.std(a, ddof=1).
 
-    >>> Stats([1, 1, 4]).sdv()
+    >>> Stats.make([1, 1, 4]).sdv()
     1.7320508075688772
     """
     return self.var()**0.5
@@ -941,18 +930,12 @@ class Stats:
   def rms(self) -> float:
     """Returns the root-mean-square.
 
-    >>> Stats([1, 1, 4]).rms()
+    >>> Stats.make([1, 1, 4]).rms()
     2.449489742783178
-    >>> Stats([-1, 1]).rms()
+    >>> Stats.make([-1, 1]).rms()
     1.0
     """
     return 0.0 if self.size == 0 else (self.sum2 / self.size)**0.5
-
-  def __eq__(self, other: object) -> bool:
-    if not isinstance(other, Stats):
-      return NotImplemented
-    return ((self.size, self.sum, self.sum2, self.min, self.max) ==
-            (other.size, other.sum, other.sum2, other.min, other.max))
 
   def __format__(self, format_spec: str = '') -> str:
     """Returns a summary of the statistics (size, min, max, avg, sdv)."""
@@ -986,21 +969,20 @@ class Stats:
   def __add__(self, other: 'Stats') -> 'Stats':
     """Returns combined statistics.
 
-    >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
+    >>> Stats.make([2, -1]) + Stats.make([7, 5]) == Stats.make([-1, 2, 5, 7])
     True
     """
-    return Stats(size=self.size + other.size, sum=self.sum + other.sum,
-                 sum2=self.sum2 + other.sum2, min=min(self.min, other.min),
-                 max=max(self.max, other.max))
+    return Stats(self.size + other.size, self.sum + other.sum,
+                 self.sum2 + other.sum2, min(self.min, other.min),
+                 max(self.max, other.max))
 
   def __mul__(self, n: int) -> 'Stats':
     """Returns statistics whereby each element appears 'n' times.
 
-    >>> Stats([4, -2]) * 3 == Stats([4, -2] * 3)
+    >>> Stats.make([4, -2]) * 3 == Stats.make([-2, -2, -2, 4, 4, 4])
     True
     """
-    return Stats(size=self.size * n, sum=self.sum * n, sum2=self.sum2 * n,
-                 min=self.min, max=self.max)
+    return Stats(self.size * n, self.sum * n, self.sum2 * n, self.min, self.max)
 
 
 ## Numpy operations
