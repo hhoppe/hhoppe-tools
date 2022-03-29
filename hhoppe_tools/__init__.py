@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.6'
+__version__ = '0.6.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -824,7 +824,7 @@ class Stats:
   >>> Stats(size=1, sum=1.5, sum2=1.5**2, min=1.5, max=1.5)
   Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
 
-  >>> Stats.make([3, 4])
+  >>> Stats.make(range(3, 5))
   Stats(size=2, min=3, max=4, avg=3.5, sdv=0.707107)
 
   >>> Stats.make([3.0, 4.0])
@@ -834,19 +834,19 @@ class Stats:
   Stats(size=2, min=-12345.0, max=1.04858e+06, avg=5.18116e+05, sdv=7.50184e+05)
 
   >>> print(Stats.make(range(55)))
-  (       55)            0 : 54           av=27.0000      sd=16.0208
+  (         55)            0 : 54           av=27.0000      sd=16.0208
 
   >>> print(Stats.make([]))
-  (        0)          inf : -inf         av=nan          sd=nan
+  (          0)          inf : -inf         av=nan          sd=nan
 
   >>> str(Stats.make([]) + Stats.make([3.0]))
-  '(        1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
+  '(          1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
 
-  >>> print(f'{Stats.make([-12345., 2.0**20]):15.9}')
-  (        2)        -12345.0 : 1048576.0       av=518115.5        sd=750184.433
+  >>> print(f'{Stats.make([-12345., 2.0**20]):14.9}')
+  (          2)       -12345.0 : 1048576.0      av=518115.5       sd=750184.433
 
   >>> print(f'{Stats.make([-12345., 2.0**20]):#10.4}')
-  (        2) -1.234e+04 : 1.049e+06  av=5.181e+05  sd=7.502e+05
+  (          2) -1.234e+04 : 1.049e+06  av=5.181e+05  sd=7.502e+05
 
   >>> len(Stats.make([1, 2]))
   2
@@ -865,15 +865,15 @@ class Stats:
   >>> stats2 = Stats.make([1.25e11 / 3, -1_234_567_890])
   >>> stats3 = stats1 + stats2 * 20_000_000
   >>> print(stats1, f'{stats2}', format(stats3), sep='\n')
-  (        2)           -3 : 7            av=2.00000      sd=7.07107
-  (        2) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=3.03358e+10
-  ( 40000002) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=2.14506e+10
+  (          2)           -3 : 7            av=2.00000      sd=7.07107
+  (          2) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=3.03358e+10
+  ( 40_000_002) -1.23457e+09 : 4.16667e+10  av=2.02160e+10  sd=2.14506e+10
 
   >>> fmt = '9.3'
   >>> print(f'{stats1:{fmt}}', f'{stats2:{fmt}}', f'{stats3:{fmt}}', sep='\n')
-  (        2)        -3 : 7         av=2.0       sd=7.07
-  (        2) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=3.03e+10
-  ( 40000002) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=2.15e+10
+  (          2)        -3 : 7         av=2.0       sd=7.07
+  (          2) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=3.03e+10
+  ( 40_000_002) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=2.15e+10
   """
   size: int
   sum: float
@@ -881,16 +881,16 @@ class Stats:
   min: float
   max: float
 
-  @staticmethod
-  def make(iterable: Iterable[Any]) -> 'Stats':
+  @classmethod
+  def make(cls, iterable: Iterable[Any]) -> 'Stats':
     """Returns statistics for numbers in iterable."""
     l = list(iterable)
     if not l:
       return Stats(0, 0, 0, math.inf, -math.inf)
     a = np.array(l)
-    return Stats(a.size, a.sum(), np.square(a).sum(),
-                 a.min() if a.size > 0 else math.inf,
-                 a.max() if a.size > 0 else -math.inf)
+    return cls(a.size, a.sum(), np.square(a).sum(),
+               a.min() if a.size > 0 else math.inf,
+               a.max() if a.size > 0 else -math.inf)
 
   def avg(self) -> float:
     """Returns the average.
@@ -943,7 +943,7 @@ class Stats:
     fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
     fmt_min = fmt if isinstance(self.min, np.floating) else fmt_int
     fmt_max = fmt if isinstance(self.max, np.floating) else fmt_int
-    return (f'({self.size:9})'
+    return (f'({self.size:11_})'
             f' {self.min:{fmt_min}} :'
             f' {self.max:<{fmt_max}}'
             f' av={self.avg():<{fmt}}'
