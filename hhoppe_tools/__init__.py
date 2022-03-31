@@ -4,7 +4,7 @@
 
 Useful commands for testing and polish:
 
-bash -c 'f=__init__.py; env python3 $f; env mypy --strict "$f" && autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; false && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; env pytest ..; echo All ran.'
+bash -c 'f=__init__.py; false && env python3 $f; env mypy --strict "$f"; autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; true && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; true && env pytest ..; echo All ran.'
 
 env pytest --doctest-modules ..
 env python3 -m doctest -v hhoppe_tools.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.8'
+__version__ = '0.6.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -47,9 +47,10 @@ from typing import Iterator, List, Mapping, Optional, Sequence, Set
 from typing import Tuple, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import
 
-import numpy as np  # type: ignore
+import numpy as np
 
 _T = TypeVar('_T')
+_NDArray = Any  # numpy typing is not yet mature.
 
 # https://github.com/python/mypy/issues/5667
 if typing.TYPE_CHECKING:
@@ -593,7 +594,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
 ## Mathematics
 
 
-def as_float(a: Any) -> np.ndarray:
+def as_float(a: Any) -> _NDArray:
   """Converts non-floating-point array to floating-point type.
 
   Args:
@@ -629,7 +630,7 @@ def as_float(a: Any) -> np.ndarray:
   return a.astype(dtype)
 
 
-def normalize(a: Any, axis: Optional[int] = None) -> np.ndarray:
+def normalize(a: Any, axis: Optional[int] = None) -> _NDArray:
   """Returns array 'a' scaled such that its elements have unit 2-norm.
 
   Args:
@@ -664,7 +665,7 @@ def normalize(a: Any, axis: Optional[int] = None) -> np.ndarray:
     return a / norm
 
 
-def rms(a: Any, axis: Optional[int] = None) -> Union[float, np.ndarray]:
+def rms(a: Any, axis: Optional[int] = None) -> Union[float, _NDArray]:
   """Returns the root mean square of the array values.
 
   >>> rms([3.0])
@@ -882,7 +883,7 @@ class Stats:
       self._min = math.inf
       self._max = -math.inf
     elif len(args) == 1:
-      a = np.asarray(args[0])  # np.ravel() ??
+      a = array_always(args[0])
       self._size = a.size
       self._sum = a.sum()
       self._sum2 = np.square(a).sum()
@@ -1018,7 +1019,7 @@ class Stats:
 ## Numpy operations
 
 
-def array_always(a: Any) -> np.ndarray:
+def array_always(a: Any) -> _NDArray:
   """Returns a numpy array even if a is an iterator of subarrays.
 
   >>> array_always(np.array([[1, 2], [3, 4]]))
@@ -1080,7 +1081,7 @@ def bounding_slices(a: Any) -> Tuple[slice, ...]:
   return tuple(slices)
 
 
-def broadcast_block(a: Any, block_shape: Any) -> np.ndarray:
+def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
   """Returns an array view where each element of 'a' is repeated as a block.
 
   Args:
@@ -1114,7 +1115,7 @@ def broadcast_block(a: Any, block_shape: Any) -> np.ndarray:
 
 
 def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
-                   dtype: Any = None) -> np.ndarray:
+                   dtype: Any = None) -> _NDArray:
   """Returns array of integers by mapping from array of characters.
 
   >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
@@ -1130,7 +1131,7 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
 
 def grid_from_string(s: str,
                      int_from_ch: Optional[Mapping[str, int]] = None,
-                     dtype: Any = None) -> np.ndarray:
+                     dtype: Any = None) -> _NDArray:
   r"""Returns a 2D array created from a multiline string.
 
   Args:
@@ -1211,7 +1212,7 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
                       indices_min: Optional[Union[int, Sequence[int]]] = None,
                       indices_max: Optional[Union[int, Sequence[int]]] = None,
                       pad: Union[int, Sequence[int]] = 0,
-                      dtype: Any = None) -> np.ndarray:
+                      dtype: Any = None) -> _NDArray:
   r"""Returns an array from (sparse) indices or from a map {index: value}.
 
   Indices are sequences of integers with some length D, which determines the
@@ -1297,7 +1298,7 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
     indices = indices[:, None]
   assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
 
-  def get_min_or_max_bound(f: Any, x: Any) -> np.ndarray:
+  def get_min_or_max_bound(f: Any, x: Any) -> _NDArray:
     return f(indices, axis=0) if x is None else np.full(indices.shape[1], x)
 
   i_min = get_min_or_max_bound(np.min, indices_min)
@@ -1320,7 +1321,7 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
                       cmap: Mapping[Any, Tuple[numbers.Integral,
                                                numbers.Integral,
                                                numbers.Integral]],
-                      pad: Union[int, Sequence[int]] = 0) -> np.ndarray:
+                      pad: Union[int, Sequence[int]] = 0) -> _NDArray:
   """Returns image from mapping {yx: value} and cmap = {value: rgb}.
 
   >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
@@ -1383,13 +1384,13 @@ def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
   return shape
 
 
-def assemble_arrays(arrays: Sequence[np.ndarray],
+def assemble_arrays(arrays: Sequence[_NDArray],
                     shape: Sequence[int],
                     background: Any = 0,
                     *,
                     align: str = 'center',
                     spacing: Any = 0,
-                    round_to_even: Any = False) -> np.ndarray:
+                    round_to_even: Any = False) -> _NDArray:
   """Returns an output array formed as a packed grid of input arrays.
 
   Args:
@@ -1490,7 +1491,7 @@ def assemble_arrays(arrays: Sequence[np.ndarray],
   return output_array
 
 
-def shift(array: Any, offset: Any, constant_values: Any = 0) -> np.ndarray:
+def shift(array: Any, offset: Any, constant_values: Any = 0) -> _NDArray:
   """Returns copy of array shifted by offset, with fill using constant.
 
   >>> array = np.arange(1, 13).reshape(3, 4)
