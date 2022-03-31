@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.7'
+__version__ = '0.6.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -804,65 +804,57 @@ def diagnostic(a: Any) -> str:
           f' nan={np.isnan(a).sum()}'
           f' posinf={np.isposinf(a).sum()}'
           f' neginf={np.isneginf(a).sum()}'
-          f' finite{repr(Stats.make(finite))[10:]}'
+          f' finite{repr(Stats(finite))[10:]}'
           f' zero={(finite == 0).sum()}')
 
 
 ## Statistics
 
 
-@dataclasses.dataclass(frozen=True)
 class Stats:
-  r"""Immutable statistics computed from some numbers.
+  r"""Statistics computed from numbers in an iterable.
 
-  >>> Stats.make([])
+  >>> Stats()
   Stats(size=0, min=inf, max=-inf, avg=nan, sdv=nan)
 
-  >>> Stats.make([1.5])
+  >>> Stats([1.5])
   Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
 
-  >>> Stats(size=1, sum=1.5, sum2=1.5**2, min=1.5, max=1.5)
-  Stats(size=1, min=1.5, max=1.5, avg=1.5, sdv=0.0)
-
-  >>> Stats.make(range(3, 5))
+  >>> Stats(range(3, 5))
   Stats(size=2, min=3, max=4, avg=3.5, sdv=0.707107)
 
-  >>> Stats.make([3.0, 4.0])
+  >>> Stats([3.0, 4.0])
   Stats(size=2, min=3.0, max=4.0, avg=3.5, sdv=0.707107)
 
-  >>> Stats.make([-12345., 2.0**20])
+  >>> Stats([-12345., 2.0**20])
   Stats(size=2, min=-12345.0, max=1.04858e+06, avg=5.18116e+05, sdv=7.50184e+05)
 
-  >>> print(Stats.make(range(55)))
+  >>> print(Stats(range(55)))
   (         55)            0 : 54           av=27.0000      sd=16.0208
 
-  >>> print(Stats.make([]))
+  >>> print(Stats())
   (          0)          inf : -inf         av=nan          sd=nan
 
-  >>> str(Stats.make([]) + Stats.make([3.0]))
+  >>> str(Stats() + Stats([3.0]))
   '(          1)      3.00000 : 3.00000      av=3.00000      sd=0.00000'
 
-  >>> print(f'{Stats.make([-12345., 2.0**20]):14.9}')
+  >>> print(f'{Stats([-12345., 2.0**20]):14.9}')
   (          2)       -12345.0 : 1048576.0      av=518115.5       sd=750184.433
 
-  >>> print(f'{Stats.make([-12345., 2.0**20]):#10.4}')
+  >>> print(f'{Stats([-12345., 2.0**20]):#10.4}')
   (          2) -1.234e+04 : 1.049e+06  av=5.181e+05  sd=7.502e+05
 
-  >>> len(Stats.make([1, 2]))
+  >>> len(Stats([1, 2]))
   2
-  >>> Stats.make([-2, 2]).rms()
+  >>> Stats([-2, 2]).rms()
   2.0
 
-  >>> a = Stats.make([1, 2])
-  >>> a.min, a.max, a.avg()
+  >>> a = Stats([1, 2])
+  >>> a.min(), a.max(), a.avg()
   (1, 2, 1.5)
-  >>> a.min = 0
-  Traceback (most recent call last):
-  ...
-  dataclasses.FrozenInstanceError: cannot assign to field 'min'
 
-  >>> stats1 = Stats.make([-3, 7])
-  >>> stats2 = Stats.make([1.25e11 / 3, -1_234_567_890])
+  >>> stats1 = Stats([-3, 7])
+  >>> stats2 = Stats([1.25e11 / 3, -1_234_567_890])
   >>> stats3 = stats1 + stats2 * 20_000_000
   >>> print(stats1, f'{stats2}', format(stats3), sep='\n')
   (          2)           -3 : 7            av=2.00000      sd=7.07107
@@ -875,54 +867,85 @@ class Stats:
   (          2) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=3.03e+10
   ( 40_000_002) -1.23e+09 : 4.17e+10  av=2.02e+10  sd=2.15e+10
   """
-  size: int
-  sum: float
-  sum2: float
-  min: float
-  max: float
 
-  @classmethod
-  def make(cls, iterable: Iterable[Any]) -> 'Stats':
-    """Returns statistics for numbers in iterable."""
-    l = list(iterable)
-    if not l:
-      return Stats(0, 0, 0, math.inf, -math.inf)
-    a = np.array(l)
-    return cls(a.size, a.sum(), np.square(a).sum(),
-               a.min() if a.size > 0 else math.inf,
-               a.max() if a.size > 0 else -math.inf)
+  _size: int
+  _sum: float
+  _sum2: float
+  _min: float
+  _max: float
+
+  def __init__(self, *args: Any) -> None:
+    if not args:
+      self._size = 0
+      self._sum = 0.0
+      self._sum2 = 0.0
+      self._min = math.inf
+      self._max = -math.inf
+    elif len(args) == 1:
+      a = np.asarray(args[0])  # np.ravel() ??
+      self._size = a.size
+      self._sum = a.sum()
+      self._sum2 = np.square(a).sum()
+      self._min = a.min() if a.size > 0 else math.inf
+      self._max = a.max() if a.size > 0 else -math.inf
+    else:
+      (self._size, self._sum, self._sum2, self._min, self._max) = args
+
+  def sum(self) -> float:
+    """Returns the sum of the values.
+
+    >>> f'{Stats([3.5, 2.2, 4.4]).sum():.8g}'
+    '10.1'
+    """
+    return self._sum
+
+  def min(self) -> float:
+    """Returns the minimum value.
+
+    >>> Stats([3.5, 2.2, 4.4]).min()
+    2.2
+    """
+    return self._min
+
+  def max(self) -> float:
+    """Returns the maximum value.
+
+    >>> Stats([3.5, 2.2, 4.4]).max()
+    4.4
+    """
+    return self._max
 
   def avg(self) -> float:
     """Returns the average.
 
-    >>> Stats.make([1, 1, 4]).avg()
+    >>> Stats([1, 1, 4]).avg()
     2.0
     """
-    return self.sum / self.size if self.size else math.nan
+    return self._sum / self._size if self._size else math.nan
 
   def ssd(self) -> float:
     """Returns the sum of squared deviations.
 
-    >>> Stats.make([1, 1, 4]).ssd()
+    >>> Stats([1, 1, 4]).ssd()
     6.0
     """
-    return (math.nan if self.size == 0 else
-            max(self.sum2 - self.sum**2 / self.size, 0))
+    return (math.nan if self._size == 0 else
+            max(self._sum2 - self._sum**2 / self._size, 0))
 
   def var(self) -> float:
     """Returns the unbiased estimate of variance, as in np.var(a, ddof=1).
 
-    >>> Stats.make([1, 1, 4]).var()
+    >>> Stats([1, 1, 4]).var()
     3.0
     """
-    return (math.nan if self.size == 0 else
-            0.0 if self.size == 1 else
-            self.ssd() / (self.size - 1))
+    return (math.nan if self._size == 0 else
+            0.0 if self._size == 1 else
+            self.ssd() / (self._size - 1))
 
   def sdv(self) -> float:
     """Returns the unbiased standard deviation as in np.std(a, ddof=1).
 
-    >>> Stats.make([1, 1, 4]).sdv()
+    >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
     """
     return self.var()**0.5
@@ -930,22 +953,22 @@ class Stats:
   def rms(self) -> float:
     """Returns the root-mean-square.
 
-    >>> Stats.make([1, 1, 4]).rms()
+    >>> Stats([1, 1, 4]).rms()
     2.449489742783178
-    >>> Stats.make([-1, 1]).rms()
+    >>> Stats([-1, 1]).rms()
     1.0
     """
-    return 0.0 if self.size == 0 else (self.sum2 / self.size)**0.5
+    return 0.0 if self._size == 0 else (self._sum2 / self._size)**0.5
 
   def __format__(self, format_spec: str = '') -> str:
     """Returns a summary of the statistics (size, min, max, avg, sdv)."""
     fmt = format_spec if format_spec else '#12.6'
     fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
-    fmt_min = fmt if isinstance(self.min, np.floating) else fmt_int
-    fmt_max = fmt if isinstance(self.max, np.floating) else fmt_int
-    return (f'({self.size:11_})'
-            f' {self.min:{fmt_min}} :'
-            f' {self.max:<{fmt_max}}'
+    fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
+    fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
+    return (f'({self._size:11_})'
+            f' {self._min:{fmt_min}} :'
+            f' {self._max:<{fmt_max}}'
             f' av={self.avg():<{fmt}}'
             f' sd={self.sdv():<{fmt}}').rstrip()
 
@@ -955,34 +978,41 @@ class Stats:
   def __repr__(self) -> str:
     fmt = '.6'
     fmt_int = ''
-    fmt_min = fmt if isinstance(self.min, np.floating) else fmt_int
-    fmt_max = fmt if isinstance(self.max, np.floating) else fmt_int
-    return (f'Stats(size={self.size}, '
-            f'min={self.min:{fmt_min}}, '
-            f'max={self.max:{fmt_max}}, '
+    fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
+    fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
+    return (f'Stats(size={self._size}, '
+            f'min={self._min:{fmt_min}}, '
+            f'max={self._max:{fmt_max}}, '
             f'avg={self.avg():{fmt}}, '
             f'sdv={self.sdv():{fmt}})')
 
   def __len__(self) -> int:
-    return self.size
+    return self._size
+
+  def __eq__(self, other: object) -> bool:
+    if not isinstance(other, Stats):
+      return NotImplemented
+    return ((self._size, self._sum, self._sum2, self._min, self._max) ==
+            (other._size, other._sum, other._sum2, other._min, other._max))
 
   def __add__(self, other: 'Stats') -> 'Stats':
     """Returns combined statistics.
 
-    >>> Stats.make([2, -1]) + Stats.make([7, 5]) == Stats.make([-1, 2, 5, 7])
+    >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
     True
     """
-    return Stats(self.size + other.size, self.sum + other.sum,
-                 self.sum2 + other.sum2, min(self.min, other.min),
-                 max(self.max, other.max))
+    return Stats(self._size + other._size, self._sum + other._sum,
+                 self._sum2 + other._sum2, min(self._min, other._min),
+                 max(self._max, other._max))
 
   def __mul__(self, n: int) -> 'Stats':
     """Returns statistics whereby each element appears 'n' times.
 
-    >>> Stats.make([4, -2]) * 3 == Stats.make([-2, -2, -2, 4, 4, 4])
+    >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
     True
     """
-    return Stats(self.size * n, self.sum * n, self.sum2 * n, self.min, self.max)
+    return Stats(
+        self._size * n, self._sum * n, self._sum2 * n, self._min, self._max)
 
 
 ## Numpy operations
