@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.6.12'
+__version__ = '0.7.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -229,6 +229,15 @@ def show(*args: Any) -> None:
 ## Jupyter/IPython notebook functionality
 
 
+def in_colab() -> bool:
+  """Returns True if running inside Google Colab."""
+  try:
+    import google.colab  # type: ignore # pylint: disable=unused-import
+    return True
+  except ModuleNotFoundError:
+    return False
+
+
 class _CellTimer:
   """Record timings of all notebook cells and show top entries at the end."""
   # Inspired from https://github.com/cpcloud/ipython-autotime.
@@ -236,7 +245,7 @@ class _CellTimer:
   instance: Optional['_CellTimer'] = None
 
   def __init__(self) -> None:
-    import IPython  # type:ignore
+    import IPython  # type: ignore
     self.elapsed_times: Dict[int, float] = {}
     self.start()
     IPython.get_ipython().events.register('pre_run_cell', self.start)
@@ -257,6 +266,8 @@ class _CellTimer:
     import IPython
     elapsed_time = time.monotonic() - self.start_time
     input_index = IPython.get_ipython().execution_count
+    if not in_colab():
+      input_index -= 1
     self.elapsed_times[input_index] = elapsed_time
 
   def show_times(self, n: Optional[int] = None, sort: bool = False) -> None:
