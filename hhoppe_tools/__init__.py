@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.2'
+__version__ = '0.7.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -50,6 +50,8 @@ import unittest.mock  # pylint: disable=unused-import
 import numpy as np
 
 _T = TypeVar('_T')
+
+# _NDArray = np.ndarray[Any, Any]
 _NDArray = Any  # numpy typing is not yet mature.
 
 # https://github.com/python/mypy/issues/5667
@@ -57,6 +59,15 @@ if typing.TYPE_CHECKING:
   _Path = Union[str, 'os.PathLike[str]']
 else:
   _Path = Union[str, os.PathLike]
+
+
+## Language extensions
+
+
+def assertv(value: Optional[_T]) -> _T:
+  """Assert a value and return it; functional assert."""
+  assert value, value
+  return value
 
 
 ## Debugging output
