@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.1'
+__version__ = '0.7.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -63,7 +63,7 @@ else:
 
 
 def check(condition: Any, message: Any = '') -> None:
-  """Raises an informative exception unless condition.
+  """Raise an informative exception unless condition.
 
   Args:
     condition: Expression convertible to bool.
@@ -85,7 +85,7 @@ def check(condition: Any, message: Any = '') -> None:
 
 
 def check_eq(a: Any, b: Any, message: Any = None) -> None:
-  """Raises an informative exception unless a == b.
+  """Raise an informative exception unless a == b.
 
   Args:
     a: First expression.
@@ -121,11 +121,11 @@ def print_err(*args: str, **kwargs: Any) -> None:
 
 
 def dump_vars(*args: Any) -> str:
-  """Returns a string showing the values of each expression.
+  """Return a string showing the values of each expression.
 
-  Specifically, converts each expression (contributed by the caller to the
+  Specifically, convert each expression (contributed by the caller to the
   variable-parameter list *args) into a substring f'expression = {expression}'
-  and joins these substrings separated by ', '.
+  and join these substrings separated by ', '.
 
   If the caller itself provided a variable-parameter list (*args),
   the search continues in its callers.  The approach examines a stack trace,
@@ -149,7 +149,7 @@ def dump_vars(*args: Any) -> str:
   """
 
   def matching_parenthesis(text: str) -> int:
-    """Returns the index of ')' matching '(' in text[0]."""
+    """Return the index of ')' matching '(' in text[0]."""
     check_eq(text[0], '(')
     num_open = 0
     for i, c in enumerate(text):
@@ -230,7 +230,7 @@ def show(*args: Any) -> None:
 
 
 def in_colab() -> bool:
-  """Returns True if running inside Google Colab."""
+  """Return True if running inside Google Colab."""
   try:
     import google.colab  # type: ignore # pylint: disable=unused-import
     return True
@@ -324,7 +324,7 @@ def repeat_each(iterable: Iterable[_T], n: int) -> Iterator[_T]:
 
 
 def only(iterable: Iterable[_T]) -> _T:
-  """Returns the first element and asserts that there are no more.
+  """Return the first element and asserts that there are no more.
 
   >>> only(range(1))
   0
@@ -353,7 +353,7 @@ def grouped(iterable: Iterable[_T],
             n: int,
             fillvalue: Optional[_T] = None,
             ) -> Iterator[Tuple[Optional[_T], ...]]:
-  """Returns elements collected into fixed-length chunks.
+  """Return elements collected into fixed-length chunks.
 
   >>> list(grouped('ABCDEFG', 3, 'x'))
   [('A', 'B', 'C'), ('D', 'E', 'F'), ('G', 'x', 'x')]
@@ -378,7 +378,7 @@ def grouped(iterable: Iterable[_T],
 def chunked(iterable: Iterable[_T],
             n: Optional[int] = None,
             ) -> Iterator[Tuple[_T, ...]]:
-  """Returns elements collected as tuples of length at most 'n' if not None.
+  """Return elements collected as tuples of length at most 'n' if not None.
 
   >>> list(chunked('ABCDEFG', 3))
   [('A', 'B', 'C'), ('D', 'E', 'F'), ('G',)]
@@ -400,7 +400,7 @@ def chunked(iterable: Iterable[_T],
 
 
 def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
-  """Returns overlapping tuples of length `n` from `iterable`.
+  """Return overlapping tuples of length `n` from `iterable`.
 
   >>> list(sliding_window('ABCDEF', 4))
   [('A', 'B', 'C', 'D'), ('B', 'C', 'D', 'E'), ('C', 'D', 'E', 'F')]
@@ -426,7 +426,7 @@ def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
 
 
 def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
-  """Returns all subsets of iterable.
+  """Return all subsets of iterable.
 
   >>> list(powerset([1, 2, 3]))
   [(), (1,), (2,), (3,), (1, 2), (1, 3), (2, 3), (1, 2, 3)]
@@ -441,7 +441,7 @@ def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
 
 
 def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
-  """Given an iterator, returns first element and re-initialized iterator.
+  """Given an iterator, return first element and re-initialized iterator.
 
   Example:
     first_image, images = peek_first(images)
@@ -470,7 +470,7 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
 
 
 def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
-  """Returns function decorated with no-op; invokable with or without args.
+  """Return function decorated with no-op; invokable with or without args.
 
   >>> @noop_decorator
   ... def func1(x): return x * 10
@@ -498,7 +498,7 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
 
 
 def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
-  """Returns a new empty module (not associated with any file).
+  """Return a new empty module (not associated with any file).
 
   >>> def some_function(*args, **kwargs): return 'success'
   >>> class Node:
@@ -561,7 +561,7 @@ def timing(description: str = 'Timing') -> Generator[None, None, None]:
 
 
 def typename(o: Any) -> str:
-  """Returns the full name (including module) of the type of o.
+  """Return the full name (including module) of the type of o.
 
   >>> typename(5)
   'int'
@@ -579,7 +579,7 @@ def typename(o: Any) -> str:
 
 
 def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
-  """Lists the variables with the largest memory allocation (in bytes).
+  """Print the variables with the largest memory allocation (in bytes).
 
   Usage:
     show_biggest_vars(globals())
@@ -606,7 +606,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
 
 
 def as_float(a: Any) -> _NDArray:
-  """Converts non-floating-point array to floating-point type.
+  """Convert non-floating-point array to floating-point type.
 
   Args:
     a: Input array.
@@ -642,7 +642,7 @@ def as_float(a: Any) -> _NDArray:
 
 
 def normalize(a: Any, axis: Optional[int] = None) -> _NDArray:
-  """Returns array 'a' scaled such that its elements have unit 2-norm.
+  """Return array 'a' scaled such that its elements have unit 2-norm.
 
   Args:
     a: Input array.
@@ -677,7 +677,7 @@ def normalize(a: Any, axis: Optional[int] = None) -> _NDArray:
 
 
 def rms(a: Any, axis: Optional[int] = None) -> Union[float, _NDArray]:
-  """Returns the root mean square of the array values.
+  """Return the root mean square of the array values.
 
   >>> rms([3.0])
   3.0
@@ -698,7 +698,7 @@ def rms(a: Any, axis: Optional[int] = None) -> Union[float, _NDArray]:
 
 
 def lenient_subtract(a: Any, b: Any) -> Any:
-  """Returns a - b, but returns 0 where a and b are the same signed infinity.
+  """Return a - b, but returns 0 where a and b are the same signed infinity.
 
   >>> inf = math.inf
   >>> lenient_subtract([3., 3., inf, inf, -inf, -inf],
@@ -713,7 +713,7 @@ def lenient_subtract(a: Any, b: Any) -> Any:
 
 
 def print_array(a: Any, **kwargs: Any) -> None:
-  """Prints array.
+  """Print the array.
 
   >>> print_array(np.arange(6).reshape(2, 3), file=sys.stdout)
   array([[0, 1, 2],
@@ -724,7 +724,7 @@ def print_array(a: Any, **kwargs: Any) -> None:
 
 
 def prime_factors(n: int) -> List[int]:
-  """Returns an ascending list of the (greather-than-one) prime factors of n.
+  """Return an ascending list of the (greather-than-one) prime factors of n.
 
   >>> prime_factors(1)
   []
@@ -751,7 +751,7 @@ def prime_factors(n: int) -> List[int]:
 
 
 def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
-  """Finds the greatest common divisor using the extended Euclidean algorithm.
+  """Find the greatest common divisor using the extended Euclidean algorithm.
 
   Returns:
     A tuple (gcd, x, y) with the property that a * x + b * y = gcd.
@@ -773,7 +773,7 @@ def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
 
 
 def modular_inverse(a: int, b: int) -> int:
-  """Returns the multiplicative inverse of 'a' with respect to the modulus 'b'.
+  """Return the multiplicative inverse of 'a' with respect to the modulus 'b'.
 
   With the extended Euclidean algorithm, for the case that a and b are coprime,
   i.e. gcd(a, b) = 1, applying "modulo b" to both sides of a * x + b * y = 1
@@ -793,7 +793,7 @@ def modular_inverse(a: int, b: int) -> int:
 
 
 def diagnostic(a: Any) -> str:
-  """Returns a diagnostic string summarizing the values in 'a' for debugging.
+  """Return a diagnostic string summarizing the values in 'a' for debugging.
 
   Args:
     a: Input values; must be convertible to an np.ndarray of scalars.
@@ -904,7 +904,7 @@ class Stats:
       (self._size, self._sum, self._sum2, self._min, self._max) = args
 
   def sum(self) -> float:
-    """Returns the sum of the values.
+    """Return the sum of the values.
 
     >>> f'{Stats([3.5, 2.2, 4.4]).sum():.8g}'
     '10.1'
@@ -912,7 +912,7 @@ class Stats:
     return self._sum
 
   def min(self) -> float:
-    """Returns the minimum value.
+    """Return the minimum value.
 
     >>> Stats([3.5, 2.2, 4.4]).min()
     2.2
@@ -920,7 +920,7 @@ class Stats:
     return self._min
 
   def max(self) -> float:
-    """Returns the maximum value.
+    """Return the maximum value.
 
     >>> Stats([3.5, 2.2, 4.4]).max()
     4.4
@@ -928,7 +928,7 @@ class Stats:
     return self._max
 
   def avg(self) -> float:
-    """Returns the average.
+    """Return the average.
 
     >>> Stats([1, 1, 4]).avg()
     2.0
@@ -936,7 +936,7 @@ class Stats:
     return self._sum / self._size if self._size else math.nan
 
   def ssd(self) -> float:
-    """Returns the sum of squared deviations.
+    """Return the sum of squared deviations.
 
     >>> Stats([1, 1, 4]).ssd()
     6.0
@@ -945,7 +945,7 @@ class Stats:
             max(self._sum2 - self._sum**2 / self._size, 0))
 
   def var(self) -> float:
-    """Returns the unbiased estimate of variance, as in np.var(a, ddof=1).
+    """Return the unbiased estimate of variance, as in np.var(a, ddof=1).
 
     >>> Stats([1, 1, 4]).var()
     3.0
@@ -955,7 +955,7 @@ class Stats:
             self.ssd() / (self._size - 1))
 
   def sdv(self) -> float:
-    """Returns the unbiased standard deviation as in np.std(a, ddof=1).
+    """Return the unbiased standard deviation as in np.std(a, ddof=1).
 
     >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
@@ -963,7 +963,7 @@ class Stats:
     return self.var()**0.5
 
   def rms(self) -> float:
-    """Returns the root-mean-square.
+    """Return the root-mean-square.
 
     >>> Stats([1, 1, 4]).rms()
     2.449489742783178
@@ -973,7 +973,7 @@ class Stats:
     return 0.0 if self._size == 0 else (self._sum2 / self._size)**0.5
 
   def __format__(self, format_spec: str = '') -> str:
-    """Returns a summary of the statistics (size, min, max, avg, sdv)."""
+    """Return a summary of the statistics (size, min, max, avg, sdv)."""
     fmt = format_spec if format_spec else '#12.6'
     fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
     fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
@@ -1008,7 +1008,7 @@ class Stats:
             (other._size, other._sum, other._sum2, other._min, other._max))
 
   def __add__(self, other: 'Stats') -> 'Stats':
-    """Returns combined statistics.
+    """Return combined statistics.
 
     >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
     True
@@ -1018,7 +1018,7 @@ class Stats:
                  max(self._max, other._max))
 
   def __mul__(self, n: int) -> 'Stats':
-    """Returns statistics whereby each element appears 'n' times.
+    """Return statistics whereby each element appears 'n' times.
 
     >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
     True
@@ -1031,7 +1031,7 @@ class Stats:
 
 
 def array_always(a: Any) -> _NDArray:
-  """Returns a numpy array even if a is an iterator of subarrays.
+  """Return a numpy array even if a is an iterator of subarrays.
 
   >>> array_always(np.array([[1, 2], [3, 4]]))
   array([[1, 2],
@@ -1051,7 +1051,7 @@ def array_always(a: Any) -> _NDArray:
 
 
 def bounding_slices(a: Any) -> Tuple[slice, ...]:
-  """Returns the slices that bound the nonzero elements of array.
+  """Return the slices that bound the nonzero elements of array.
 
   >>> bounding_slices(())
   (slice(0, 0, None),)
@@ -1093,7 +1093,7 @@ def bounding_slices(a: Any) -> Tuple[slice, ...]:
 
 
 def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
-  """Returns an array view where each element of 'a' is repeated as a block.
+  """Return an array view where each element of 'a' is repeated as a block.
 
   Args:
     a: input array of any dimension.
@@ -1127,7 +1127,7 @@ def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
 
 def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
                    dtype: Any = None) -> _NDArray:
-  """Returns array of integers by mapping from array of characters.
+  """Return array of integers by mapping from array of characters.
 
   >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
   array([0, 1, 2, 0, 1])
@@ -1143,7 +1143,7 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
 def grid_from_string(s: str,
                      int_from_ch: Optional[Mapping[str, int]] = None,
                      dtype: Any = None) -> _NDArray:
-  r"""Returns a 2D array created from a multiline string.
+  r"""Return a 2D array created from a multiline string.
 
   Args:
     s: String whose nonempty lines correspond to the rows of the grid, with
@@ -1185,7 +1185,7 @@ def grid_from_string(s: str,
 
 def string_from_grid(grid: Any,
                      ch_from_int: Optional[Mapping[int, str]] = None) -> str:
-  r"""Returns a multiline string created from a 2D array.
+  r"""Return a multiline string created from a 2D array.
 
   Args:
     grid: 2D array-like data containing either chr or integers.
@@ -1224,7 +1224,7 @@ def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
                       indices_max: Optional[Union[int, Sequence[int]]] = None,
                       pad: Union[int, Sequence[int]] = 0,
                       dtype: Any = None) -> _NDArray:
-  r"""Returns an array from (sparse) indices or from a map {index: value}.
+  r"""Return an array from (sparse) indices or from a map {index: value}.
 
   Indices are sequences of integers with some length D, which determines the
   dimensionality of the output array.  The array shape is computed by bounding
@@ -1333,7 +1333,7 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
                                                numbers.Integral,
                                                numbers.Integral]],
                       pad: Union[int, Sequence[int]] = 0) -> _NDArray:
-  """Returns image from mapping {yx: value} and cmap = {value: rgb}.
+  """Return image from mapping {yx: value} and cmap = {value: rgb}.
 
   >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
   >>> cmap = {'A': (100, 1, 2), 'B': (3, 200, 4), ' ': (235, 235, 235)}
@@ -1402,7 +1402,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
                     align: str = 'center',
                     spacing: Any = 0,
                     round_to_even: Any = False) -> _NDArray:
-  """Returns an output array formed as a packed grid of input arrays.
+  """Return an output array formed as a packed grid of input arrays.
 
   Args:
     arrays: Sequence of input arrays with the same data type and rank.  The
@@ -1480,7 +1480,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   output_array = np.full(output_shape, background, dtype=arrays[0].dtype)
 
   def offset(length: int, size: int, align: str) -> int:
-    """Returns offset to align element of given size within cell of length."""
+    """Return an offset to align element of given size within cell of length."""
     remainder = length - size
     if align not in ('start', 'stop', 'center'):
       raise ValueError(f'Alignment {align} is not recognized.')
@@ -1503,7 +1503,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
 
 def shift(array: Any, offset: Any, constant_values: Any = 0) -> _NDArray:
-  """Returns copy of array shifted by offset, with fill using constant.
+  """Return a copy of the array shifted by offset, with fill using constant.
 
   >>> array = np.arange(1, 13).reshape(3, 4)
 
@@ -1540,7 +1540,7 @@ def shift(array: Any, offset: Any, constant_values: Any = 0) -> _NDArray:
 
 class UnionFind:
   """Union-find is an efficient technique for tracking equivalence classes as
-  pairs of elements are incrementally unified into the same class. See
+  pairs of elements are incrementally unified into the same class.  See
   https://en.wikipedia.org/wiki/Disjoint-set_data_structure .
   The implementation uses path compression but without weight-balancing, so the
   worst case time complexity is O(n*log(n)), but the average case is O(n).
@@ -1575,12 +1575,12 @@ class UnionFind:
     self._rep[rep_b] = rep_a
 
   def same(self, a: Any, b: Any) -> bool:
-    """Returns whether a and b are in the same equivalence class."""
+    """Return whether a and b are in the same equivalence class."""
     result: bool = self.find(a) == self.find(b)
     return result
 
   def find(self, a: Any) -> Any:
-    """Returns a representative for the class of a; valid until next union()."""
+    """Return a representative for the class of a; valid until next union()."""
     if a not in self._rep:
       return a
     parents = []
@@ -1597,7 +1597,7 @@ class UnionFind:
 
 def topological_sort(graph: Mapping[_T, Sequence[_T]],
                      cycle_check: bool = False) -> List[_T]:
-  """Given a dag (directed acyclic graph), returns a list of graph nodes such
+  """Given a dag (directed acyclic graph), return a list of graph nodes such
   that for every directed edge (u, v) in the graph, u is before v in the list.
   See https://en.wikipedia.org/wiki/Topological_sorting and
   https://stackoverflow.com/a/47234034/.
@@ -1644,7 +1644,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
 
 def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
                            y_desired: Any) -> Any:
-  """Returns x such that feval(x) <= y_desired < feval(x + 1),
+  """Return x such that feval(x) <= y_desired < feval(x + 1),
 
   Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
 
@@ -1674,7 +1674,7 @@ def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
 
 
 def write_contents(path: str, data: Union[str, bytes]) -> None:
-  """Writes data (either utf-8 string or bytes) to file.
+  """Write data (either utf-8 string or bytes) to file.
 
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
@@ -1689,7 +1689,7 @@ def write_contents(path: str, data: Union[str, bytes]) -> None:
 
 
 def is_executable(path: _Path) -> bool:
-  """Checks if a file is executable.
+  """Check if a file is executable.
 
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
