@@ -19,15 +19,17 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.3'
+__version__ = '0.7.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
 import collections.abc
 import contextlib
+import cProfile
 import dataclasses
 import doctest
 import functools
+import gc
 import io  # pylint: disable=unused-import
 import importlib.util
 import itertools
@@ -35,6 +37,7 @@ import math
 import numbers
 import os  # pylint: disable=unused-import
 import pathlib
+import pstats
 import re
 import stat
 import sys
@@ -65,7 +68,16 @@ else:
 
 
 def assertv(value: Optional[_T]) -> _T:
-  """Assert a value and return it; functional assert."""
+  """Assert a value and return it; functional assert.
+
+  >>> assertv('33')
+  '33'
+
+  >>> assertv([])
+  Traceback (most recent call last):
+  ...
+  AssertionError: []
+  """
   assert value, value
   return value
 
@@ -241,7 +253,11 @@ def show(*args: Any) -> None:
 
 
 def in_colab() -> bool:
-  """Return True if running inside Google Colab."""
+  """Return True if running inside Google Colab.
+
+  >>> in_colab()
+  False
+  """
   try:
     import google.colab  # type: ignore # pylint: disable=unused-import
     return True
@@ -316,6 +332,131 @@ def show_notebook_cell_top_times() -> None:
   """
   if _CellTimer.instance:
     _CellTimer.instance.show_times(n=20, sort=True)
+
+
+## Timing
+
+
+def get_time_and_result(func: Callable[[], Any], *, max_num: int = 10,
+                        max_time: float = 2.0) -> Tuple[float, Any]:
+  """Return (minimum_time, result) when repeatedly calling `func`.
+
+  >>> elapsed, result = get_time_and_result(lambda: 11 + 22)
+  >>> elapsed < 0.01
+  True
+  >>> result
+  33
+  """
+  assert callable(func) and max_num > 0 and max_time > 0.0
+  gc_was_enabled = gc.isenabled()
+  try:
+    gc.disable()
+    num_time = 0
+    sum_time = 0.0
+    min_time = np.inf
+    start = time.monotonic()
+    while num_time < max_num and sum_time < max_time:
+      result = func()
+      stop = time.monotonic()
+      elapsed = stop - start
+      start = stop
+      num_time += 1
+      sum_time += elapsed
+      min_time = min(min_time, elapsed)
+  finally:
+    if gc_was_enabled:
+      gc.enable()
+  return min_time, result
+
+
+def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
+  """Return the minimum execution time when repeatedly calling `func`.
+
+  >>> elapsed = get_time(lambda: time.sleep(0.2), max_num=1)
+  >>> 0.15 < elapsed < 0.25
+  True
+  """
+  return get_time_and_result(func, **kwargs)[0]
+
+
+def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
+  """Print the minimum execution time when repeatedly calling `func`.
+
+  >>> print_time(lambda: 11 + 22)
+  0.000 s
+  """
+  min_time = get_time(func, **kwargs)
+  print(f'{min_time:.3f} s', flush=True)
+
+
+## Profiling
+
+
+def prun(func: Callable[[], Any], mode: str = 'tottime',
+         top: Optional[int] = None) -> None:
+  """Profile the function call and print reformatted statistics.
+
+  >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
+  ...   prun(lambda: np.linalg.qr(np.random.random((400, 400))))
+  ...   lines = m.getvalue().splitlines()
+  >>> assert lines[0].startswith('# Prun: tottime ')
+  >>> assert 'overall_cumtime' in lines[0]
+  >>> assert len(lines) >= 4
+  """
+  assert callable(func)
+  assert mode in ('original', 'full', 'tottime'), mode
+
+  profile = cProfile.Profile()
+  try:
+    profile.enable()
+    func()
+  finally:
+    profile.disable()
+
+  with io.StringIO() as s:
+    args = (top,) if top is not None else ()
+    pstats.Stats(profile, stream=s).sort_stats('tottime').print_stats(*args)
+    lines = s.getvalue().strip('\n').splitlines()
+
+  if mode == 'original':
+    print('\n'.join(lines))
+    return
+
+  def beautify_function_name(name: str) -> str:
+    name = re.sub(r'^\{built-in method (.*)\}$', r'\1 (built-in)', name)
+    name = re.sub(r"^\{method '(.*)' of '(.*)' objects\}$", r'\2.\1', name)
+    name = re.sub(r'^\{function (\S+) at (0x\w+)\}$', r'\1', name)
+    name = re.sub(r'^<ipython-input[-\w]+>:\d+\((.*)\)$', r'\1', name)
+    name = re.sub(r'^([^:()]+):(\d+)\((.+)\)$', r'\3 (\1:\2)', name)
+    name = re.sub(r'^\{(\S+)\}$', r'\1', name)
+    return name
+
+  output = []
+  overall_time = 0.0
+  post_header = False
+  for line in lines:
+    if post_header:
+      tottime_str, cumtime_str, name = assertv(re.fullmatch(
+          r'\s*\S+\s+(\S+)\s+\S+\s+(\S+)\s+\S+\s+(\S.*)', line)).groups()
+      tottime, cumtime = float(tottime_str), float(cumtime_str)
+      beautified_name = beautify_function_name(name)
+      significant_time = (tottime / overall_time > 0.05 or
+                          0.05 < cumtime / overall_time < 0.95)
+      if top is not None or significant_time:
+        if mode == 'tottime':
+          output.append(f'     {tottime:8.3f} {cumtime:8.3f} {beautified_name}')
+        else:  # mode == 'full'
+          output.append(line.replace(name, beautified_name))
+    elif ' function calls ' in line:
+      overall_time = float(
+          assertv(re.search(r' in (\S+) seconds', line)).group(1))
+      output.append(f'Prun: tottime {overall_time:8.3f} overall_cumtime')
+    elif line.lstrip().startswith('ncalls '):
+      if mode == 'full':
+        output.append(line)
+      post_header = True
+
+  print('\n'.join([f'#{" " * bool(line)}' + line for line in output]))
 
 
 ## Operations on iterables
