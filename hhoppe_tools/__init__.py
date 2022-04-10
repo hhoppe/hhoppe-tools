@@ -2,7 +2,7 @@
 """Library of Python tools -- Hugues Hoppe.
 # pylint: disable=line-too-long
 
-Useful commands for testing and polish:
+Useful commands to test and polish this file:
 
 bash -c 'f=__init__.py; false && env python3 $f; env mypy --strict "$f"; autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; true && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; true && env pytest ..; echo All ran.'
 
@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.4'
+__version__ = '0.7.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -85,37 +85,14 @@ def assertv(value: Optional[_T]) -> _T:
 ## Debugging output
 
 
-def check(condition: Any, message: Any = '') -> None:
-  """Raise an informative exception unless condition.
-
-  Args:
-    condition: Expression convertible to bool.
-    message: String or object reported in exception if condition is false.
-  Raises:
-    RuntimeError: If condition is false.
-
-  >>> check(1)
-
-  >>> check(False, (1, 2))
-  Traceback (most recent call last):
-  ...
-  RuntimeError: Check fails: (1, 2)
-  """
-  if not condition:
-    if not isinstance(message, str):
-      message = repr(message)
-    raise RuntimeError(f'Check fails: {message}')
-
-
-def check_eq(a: Any, b: Any, message: Any = None) -> None:
-  """Raise an informative exception unless a == b.
+def check_eq(a: Any, b: Any) -> None:
+  """Assert that two values are equal or raise exception with a useful message.
 
   Args:
     a: First expression.
     b: Second expression.
-    message: String or object reported in exception if condition is false.
   Raises:
-    RuntimeError: If condition is false.
+    RuntimeError: If a != b (or np.any(a != b) if np.ndarray).
 
   >>> check_eq('a' + 'b', 'ab')
 
@@ -124,11 +101,9 @@ def check_eq(a: Any, b: Any, message: Any = None) -> None:
   ...
   RuntimeError: Check fails: 3 == 4
   """
-  message = '' if message is None else f' ({message})'
-  if isinstance(a, np.ndarray):
-    check(np.all(a == b), f'{a!r} == {b!r}{message}')
-  else:
-    check(a == b, f'{a!r} == {b!r}{message}')
+  check_fails = np.any(a != b) if isinstance(a, np.ndarray) else a != b
+  if check_fails:
+    raise AssertionError(f'{a!r} == {b!r}')
 
 
 def print_err(*args: str, **kwargs: Any) -> None:
@@ -184,7 +159,7 @@ def dump_vars(*args: Any) -> str:
           return i
     raise RuntimeError(f'No matching right parenthesis in "{text}"')
 
-  # Adapted from make_dict() in https://stackoverflow.com/a/2553524/1190077.
+  # Adapted from make_dict() in https://stackoverflow.com/a/2553524 .
   stack = traceback.extract_stack()
   this_function_name = stack[-1][2]  # i.e. initially 'dump_vars'.
   for stackframe in stack[-2::-1]:
@@ -612,7 +587,7 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
   >>> list(iter)
   [0, 1, 2, 3, 4]
   """
-  # Inspired from https://stackoverflow.com/a/12059829/1190077
+  # Inspired from https://stackoverflow.com/a/12059829
   peeker, iterator_reinitialized = itertools.tee(iterator)
   first = next(peeker)
   return first, iterator_reinitialized
@@ -638,6 +613,42 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
     return noop_decorator  # decorator invoked with arguments; ignore them
   func: Callable[[Any], Any] = args[0]
   return func
+
+
+def terse_str(cls: type) -> type:
+  """Decorator for a dataclasses.dataclass, which defines a custom str().
+
+  >>> @terse_str
+  ... @dataclasses.dataclass
+  ... class TestTerseStr:
+  ...   a: int = 3
+  ...   b: List[str] = dataclasses.field(default_factory=lambda: ['g', 'h'])
+
+  >>> str(TestTerseStr())
+  'TestTerseStr()'
+
+  >>> str(TestTerseStr(a=4))
+  'TestTerseStr(a=4)'
+
+  >>> str(TestTerseStr(b=['i', 'j']))
+  "TestTerseStr(b=['i', 'j'])"
+  """
+  assert isinstance(cls, type)
+  default_for_field = {
+      f.name: (f.default_factory() if callable(f.default_factory)
+               else f.default)
+      for f in dataclasses.fields(cls)
+  }
+
+  def __str__(self: Any) -> str:
+    """Return a string containing only the non-default field values."""
+    s = ', '.join(f'{name}={getattr(self, name)!r}'
+                  for name, default in default_for_field.items()
+                  if getattr(self, name) != default)
+    return f'{type(self).__name__}({s})'
+
+  setattr(cls, '__str__', __str__)
+  return cls
 
 
 ## Imports and modules
@@ -670,7 +681,7 @@ def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
   >>> node.attrib
   2
   """
-  # https://stackoverflow.com/a/53080237/1190077
+  # https://stackoverflow.com/a/53080237
   module = sys.modules.get(module_name)
   if not module:
     spec = importlib.util.spec_from_loader(module_name, loader=None)
@@ -1270,7 +1281,7 @@ def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
   """
   block_shape = np.broadcast_to(block_shape, (a.ndim,))
   # Inspired from https://stackoverflow.com/a/52339952
-  # and https://stackoverflow.com/a/52346065.
+  # and https://stackoverflow.com/a/52346065
   shape1 = tuple(v for pair in zip(a.shape, (1,) * a.ndim) for v in pair)
   shape2 = tuple(v for pair in zip(a.shape, block_shape) for v in pair)
   final_shape = a.shape * block_shape
@@ -1752,7 +1763,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
   """Given a dag (directed acyclic graph), return a list of graph nodes such
   that for every directed edge (u, v) in the graph, u is before v in the list.
   See https://en.wikipedia.org/wiki/Topological_sorting and
-  https://stackoverflow.com/a/47234034/.
+  https://stackoverflow.com/a/47234034 .
 
   >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
   >>> topological_sort(graph)
