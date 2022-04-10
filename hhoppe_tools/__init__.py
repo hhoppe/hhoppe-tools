@@ -4,7 +4,7 @@
 
 Useful commands to test and polish this file:
 
-bash -c 'f=__init__.py; false && env python3 $f; env mypy --strict "$f"; autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; true && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; true && env pytest ..; echo All ran.'
+bash -c 'f=__init__.py; true && env python3 $f; env mypy --strict "$f"; autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; true && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; true && env pytest ..; echo All ran.'
 
 env pytest --doctest-modules ..
 env python3 -m doctest -v hhoppe_tools.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
@@ -99,7 +99,7 @@ def check_eq(a: Any, b: Any) -> None:
   >>> check_eq(1 + 2, 4)
   Traceback (most recent call last):
   ...
-  RuntimeError: Check fails: 3 == 4
+  AssertionError: 3 == 4
   """
   check_fails = np.any(a != b) if isinstance(a, np.ndarray) else a != b
   if check_fails:
