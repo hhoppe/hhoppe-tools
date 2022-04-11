@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.5'
+__version__ = '0.7.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -40,6 +40,7 @@ import pathlib
 import pstats
 import re
 import stat
+import subprocess
 import sys
 import tempfile  # pylint:disable=unused-import
 import time
@@ -1864,6 +1865,38 @@ def is_executable(path: _Path) -> bool:
   ...     check_eq(is_executable(path), True)
   """
   return bool(pathlib.Path(path).stat().st_mode & stat.S_IEXEC)
+
+
+## OS commands
+
+
+def run(args: Union[str, Sequence[str]]) -> None:
+  """Execute command, printing output from stdout and stderr.
+
+  Args:
+    args: Command to execute, which can be either a string or a sequence of word
+      strings, as in `subprocess.run()`.  If `args` is a string, the shell is
+      invoked to interpret it.
+
+  Raises:
+    RuntimeError: If the command's exit code is nonzero.
+
+  >>> with tempfile.TemporaryDirectory() as dir:
+  ...   path = pathlib.Path(dir) / 'file'
+  ...   run(f'echo ab >{path}')
+  ...   assert path.is_file() and 3 <= path.stat().st_size <= 4
+  """
+  proc = subprocess.run(
+      args,
+      shell=isinstance(args, str),
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT,
+      check=False,
+      universal_newlines=True)
+  print(proc.stdout, end='', flush=True)
+  if proc.returncode:
+    raise RuntimeError(
+        f"Command '{proc.args}' failed with code {proc.returncode}.")
 
 
 if __name__ == '__main__':
