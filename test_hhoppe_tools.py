@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tests for hhoppe_tools module."""
-import numpy as np  # type: ignore
+import numpy as np
 import hhoppe_tools as hh
 
 
@@ -40,6 +40,30 @@ def test_union_find() -> None:
   hh.check_eq(union_find.same(12, 23), True)
   hh.check_eq(union_find.same(12, 35), True)
   hh.check_eq(union_find.same(23, 35), True)
+
+
+def test_noop_decorator() -> None:
+  @hh.noop_decorator
+  def func1(i: int) -> int:
+    return i * 2
+
+  @hh.noop_decorator()
+  def func2(i: int) -> int:
+    return i * 2
+
+  @hh.noop_decorator('some_argument')
+  def func3(i: int) -> int:
+    return i * 2
+
+  @hh.noop_decorator(some_kwarg='value')
+  def func4(i: int) -> int:
+    return i * 2
+
+  hh.check_eq(func1(1), 2)
+  hh.check_eq(func2(1), 2)
+  hh.check_eq(func3(1), 2)
+  hh.check_eq(func4(1), 2)
+
 
 # Would require adding a "test_requires=['IPython']" in setup.py.
 #

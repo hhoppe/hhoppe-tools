@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.6'
+__version__ = '0.7.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -54,6 +54,7 @@ import unittest.mock  # pylint: disable=unused-import
 import numpy as np
 
 _T = TypeVar('_T')
+_F = TypeVar('_F', bound=Callable[..., Any])
 
 # _NDArray = np.ndarray[Any, Any]
 _NDArray = Any  # numpy typing is not yet mature.
@@ -235,7 +236,7 @@ def in_colab() -> bool:
   False
   """
   try:
-    import google.colab  # type: ignore # pylint: disable=unused-import
+    import google.colab  # pylint: disable=unused-import
     return True
   except ModuleNotFoundError:
     return False
@@ -248,7 +249,7 @@ class _CellTimer:
   instance: Optional['_CellTimer'] = None
 
   def __init__(self) -> None:
-    import IPython  # type: ignore
+    import IPython
     self.elapsed_times: Dict[int, float] = {}
     self.start()
     IPython.get_ipython().events.register('pre_run_cell', self.start)
@@ -405,6 +406,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
     name = re.sub(r'^<ipython-input[-\w]+>:\d+\((.*)\)$', r'\1', name)
     name = re.sub(r'^([^:()]+):(\d+)\((.+)\)$', r'\3 (\1:\2)', name)
     name = re.sub(r'^\{(\S+)\}$', r'\1', name)
+    name = re.sub(r' \(/tmp/ipykernel.*\.py:', r' (/tmp/ipykernel:', name)
     return name
 
   output = []
@@ -597,21 +599,33 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
 ## Meta programming
 
 
-def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
+@typing.overload  # Bare decorator.
+def noop_decorator(func: _F) -> _F: ...
+
+
+@typing.overload  # Decorator with arguments.
+def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]: ...
+
+
+def noop_decorator(*args: Any, **kwargs: Any) -> Any:
   """Return function decorated with no-op; invokable with or without args.
 
   >>> @noop_decorator
   ... def func1(x): return x * 10
+
   >>> @noop_decorator()
   ... def func2(x): return x * 10
+
   >>> @noop_decorator(2, 3)
   ... def func3(x): return x * 10
+
   >>> @noop_decorator(keyword=True)
   ... def func4(x): return x * 10
+
   >>> check_eq(func1(1) + func2(1) + func3(1) + func4(1), 40)
   """
   if len(args) != 1 or not callable(args[0]) or kwargs:
-    return noop_decorator  # decorator invoked with arguments; ignore them
+    return noop_decorator  # Decorator is invoked with arguments; ignore them.
   func: Callable[[Any], Any] = args[0]
   return func
 
