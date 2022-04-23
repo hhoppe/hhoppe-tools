@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.7'
+__version__ = '0.7.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -284,7 +284,7 @@ class _CellTimer:
     # https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.history.html
     session = IPython.get_ipython().history_manager.session_number
     history_range = IPython.get_ipython().history_manager.get_range(session)
-    inputs = {index: s for unused_session, index, s in history_range}
+    inputs = {index: text for unused_session, index, text in history_range}
     for input_index, elapsed_time in itertools.islice(times, n):
       cell_input = inputs[input_index]
       print(f'In[{input_index:3}] {cell_input!r:60.60} {elapsed_time:6.3f} s')
@@ -390,10 +390,11 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   finally:
     profile.disable()
 
-  with io.StringIO() as s:
+  with io.StringIO() as string_io:
     args = (top,) if top is not None else ()
-    pstats.Stats(profile, stream=s).sort_stats('tottime').print_stats(*args)
-    lines = s.getvalue().strip('\n').splitlines()
+    pstats.Stats(profile, stream=string_io).sort_stats(
+        'tottime').print_stats(*args)
+    lines = string_io.getvalue().strip('\n').splitlines()
 
   if mode == 'original':
     print('\n'.join(lines))
@@ -650,17 +651,18 @@ def terse_str(cls: type) -> type:
   """
   assert isinstance(cls, type)
   default_for_field = {
-      f.name: (f.default_factory() if callable(f.default_factory)
-               else f.default)
-      for f in dataclasses.fields(cls)
+      field.name: (field.default_factory() if callable(field.default_factory)
+                   else field.default)
+      for field in dataclasses.fields(cls)
+      if field.repr
   }
 
   def __str__(self: Any) -> str:
     """Return a string containing only the non-default field values."""
-    s = ', '.join(f'{name}={getattr(self, name)!r}'
-                  for name, default in default_for_field.items()
-                  if getattr(self, name) != default)
-    return f'{type(self).__name__}({s})'
+    text = ', '.join(f'{name}={getattr(self, name)!r}'
+                     for name, default in default_for_field.items()
+                     if getattr(self, name) != default)
+    return f'{type(self).__name__}({text})'
 
   setattr(cls, '__str__', __str__)
   return cls
@@ -1318,36 +1320,36 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
   return lookup[a]
 
 
-def grid_from_string(s: str,
+def grid_from_string(string: str,
                      int_from_ch: Optional[Mapping[str, int]] = None,
                      dtype: Any = None) -> _NDArray:
   r"""Return a 2D array created from a multiline string.
 
   Args:
-    s: String whose nonempty lines correspond to the rows of the grid, with
-      one chr per grid element.
-    int_from_ch: Mapping from the chr in s to integers in the resulting grid;
-      if None, the grid contains chr elements (dtype='<U1').
+    string: Nonempty lines correspond to the rows of the grid, with one chr
+      per grid element.
+    int_from_ch: Mapping from the chr in string to integers in the resulting
+      grid; if None, the grid contains chr elements (dtype='<U1').
     dtype: Integer element type for the result of int_from_ch.
 
-  >>> s = '..B\nB.A\n'
-  >>> g = grid_from_string(s)
+  >>> string = '..B\nB.A\n'
+  >>> g = grid_from_string(string)
   >>> g, g.nbytes
   (array([['.', '.', 'B'],
          ['B', '.', 'A']], dtype='<U1'), 24)
 
-  >>> g = grid_from_string(s, {'.': 0, 'A': 1, 'B': 2})
+  >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2})
   >>> g, g.nbytes
   (array([[0, 0, 2],
          [2, 0, 1]]), 48)
 
-  >>> g = grid_from_string(s, {'.': 0, 'A': 1, 'B': 2}, dtype=np.uint8)
+  >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2}, dtype=np.uint8)
   >>> g, g.nbytes
   (array([[0, 0, 2],
          [2, 0, 1]], dtype=uint8), 6)
   """
-  # grid = np.array(list(map(list, s.strip('\n').split('\n'))))  # Slow.
-  lines = s.strip('\n').splitlines()
+  # grid = np.array(list(map(list, string.strip('\n').split('\n'))))  # Slow.
+  lines = string.strip('\n').splitlines()
   height, width = len(lines), len(lines[0])
   grid = np.empty((height, width), dtype='U1')
   dtype_for_row = f'U{width}'
