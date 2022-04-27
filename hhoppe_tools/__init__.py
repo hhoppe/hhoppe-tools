@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.8'
+__version__ = '0.7.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -206,24 +206,23 @@ def dump_vars(*args: Any) -> str:
 
 
 def show(*args: Any) -> None:
-  r"""Prints expressions and their values on stderr.
+  r"""Prints expressions and their values on stdout.
 
   Args:
     *args: Expressions to show.
-    **kwargs: Keyword arguments passed to print_err().
 
-  >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   show(4 * 3)
-  ...   print(repr(m.getvalue()))
-  '4 * 3 = 12\n'
+  ...   check_eq(m.getvalue(), '4 * 3 = 12\n')
 
-  >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
+  >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   a ='<string>'
   ...   show(a, 'literal_string', "s", a * 2, 34 // 3)
-  ...   print(repr(m.getvalue()))
+  ...   s = m.getvalue()
+  >>> s
   'a = <string>, literal_string, s, a * 2 = <string><string>, 34 // 3 = 11\n'
   """
-  print_err(dump_vars(*args))
+  print(dump_vars(*args), flush=True)
 
 
 ## Jupyter/IPython notebook functionality
