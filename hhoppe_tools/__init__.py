@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.7.9'
+__version__ = '0.8.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -418,6 +418,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
           r'\s*\S+\s+(\S+)\s+\S+\s+(\S+)\s+\S+\s+(\S.*)', line)).groups()
       tottime, cumtime = float(tottime_str), float(cumtime_str)
       beautified_name = beautify_function_name(name)
+      overall_time += 1e-6
       significant_time = (tottime / overall_time > 0.05 or
                           0.05 < cumtime / overall_time < 0.95)
       if top is not None or significant_time:
@@ -1112,7 +1113,7 @@ class Stats:
     >>> Stats([1, 1, 4]).avg()
     2.0
     """
-    return self._sum / self._size if self._size else math.nan
+    return math.nan if self._size == 0 else self._sum / self._size
 
   def ssd(self) -> float:
     """Return the sum of squared deviations.
