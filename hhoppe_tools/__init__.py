@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -55,6 +55,7 @@ import numpy as np
 
 _T = TypeVar('_T')
 _F = TypeVar('_F', bound=Callable[..., Any])
+_UNDEFINED = object()
 
 # _NDArray = np.ndarray[Any, Any]
 _NDArray = Any  # numpy typing is not yet mature.
@@ -597,6 +598,40 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
   return first, iterator_reinitialized
 
 
+## Temporary variable assignment
+
+
+@contextlib.contextmanager
+def temporary_assignment(variables: Dict[str, Any], name: str,
+                         value: Any) -> Generator[None, None, None]:
+  """Temporarily assign `value` to the variable named `name` in `variables`.
+
+  Args:
+    variables: Usually the `globals()` of the caller module.  Note that
+      `locals()` does not work as it should not be modified.
+    name: Name of the variable in `variables` to temporarily assign.
+    value: Value assigned to `name` in the lifetime of the context.
+
+  >>> var = 1
+  >>> with temporary_assignment(globals(), 'var', 2):
+  ...   check_eq(var, 2)
+  >>> check_eq(var, 1)
+
+  >>> assert 'var2' not in globals()
+  >>> with temporary_assignment(globals(), 'var2', '1'):
+  ...   check_eq(var2, '1')
+  >>> assert 'var2' not in globals()
+  """
+  # https://stackoverflow.com/a/57226721.
+  old_value = variables.get(name, _UNDEFINED)
+  variables[name] = value
+  yield
+  if old_value is _UNDEFINED:
+    del variables[name]
+  else:
+    variables[name] = old_value
+
+
 ## Meta programming
 
 
@@ -718,7 +753,7 @@ def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
 
 @contextlib.contextmanager
 def timing(description: str = 'Timing') -> Generator[None, None, None]:
-  r"""Context that reports elapsed time.
+  """Context that reports elapsed time.
 
   Example:
     with timing('List comprehension example'):
