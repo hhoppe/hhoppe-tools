@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -314,56 +314,87 @@ def show_notebook_cell_top_times() -> None:
 ## Timing
 
 
-def get_time_and_result(func: Callable[[], Any], *, max_num: int = 10,
+def get_time_and_result(func: Callable[[], Any], *,
+                        max_repeat: int = 10,
                         max_time: float = 2.0) -> Tuple[float, Any]:
-  """Return (minimum_time, result) when repeatedly calling `func`.
+  """Call the function repeatedly to determine its minimum run time.
+
+  If the measured run time is small, more precise time estimates are obtained
+  by considering batches of function calls (with automatically increasing
+  batch size).
+
+  Args:
+    func: Function to time.
+    max_repeat: Maximum number of timing measurements across which to compute
+      the minimum value.
+    max_time: Desired maximum total time in obtaining timing measurements.
+
+  Returns:
+    minimum_time: The smallest time (in seconds) measured across the repeated
+      calls to `func` (divided by batch size if batches are introduced).
+    result: The value returned by the last call to `func`.
 
   >>> elapsed, result = get_time_and_result(lambda: 11 + 22)
-  >>> elapsed < 0.01
-  True
+  >>> assert elapsed < 0.01, elapsed
   >>> result
   33
   """
-  assert callable(func) and max_num > 0 and max_time > 0.0
+  assert callable(func) and max_repeat > 0 and max_time > 0.0
+  result = None
   gc_was_enabled = gc.isenabled()
+  batch_size = 1
+  smallest_acceptable_batch_time = 0.01  # All times are in seconds.
   try:
     gc.disable()
-    num_time = 0
-    sum_time = 0.0
-    min_time = np.inf
-    start = time.monotonic()
-    while num_time < max_num and sum_time < max_time:
-      result = func()
-      stop = time.monotonic()
-      elapsed = stop - start
-      start = stop
-      num_time += 1
-      sum_time += elapsed
-      min_time = min(min_time, elapsed)
+    while True:
+      num_repeat = 0
+      sum_time = 0.0
+      min_time = math.inf
+      start = time.monotonic()
+      while num_repeat < max_repeat and sum_time < max_time:
+        for _ in range(batch_size):
+          result = func()
+        stop = time.monotonic()
+        elapsed = stop - start
+        start = stop
+        num_repeat += 1
+        sum_time += elapsed
+        min_time = min(min_time, elapsed)
+      if min_time >= smallest_acceptable_batch_time:
+        break
+      batch_size *= 10
   finally:
     if gc_was_enabled:
       gc.enable()
-  return min_time, result
+  return min_time / batch_size, result
 
 
 def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
   """Return the minimum execution time when repeatedly calling `func`.
 
-  >>> elapsed = get_time(lambda: time.sleep(0.2), max_num=1)
-  >>> 0.15 < elapsed < 0.25
-  True
+  >>> elapsed = get_time(lambda: time.sleep(0.2), max_repeat=1)
+  >>> assert 0.15 < elapsed < 0.25, elapsed
   """
   return get_time_and_result(func, **kwargs)[0]
 
 
 def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
-  """Print the minimum execution time when repeatedly calling `func`.
+  r"""Print the minimum execution time when repeatedly calling `func`.
 
-  >>> print_time(lambda: 11 + 22)
-  0.000 s
+  >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
+  ...   print_time(lambda: 1)
+  ...   assert re.fullmatch(r'[0-9.]+ .?s\n', m.getvalue()), m.getvalue()
+
   """
   min_time = get_time(func, **kwargs)
-  print(f'{min_time:.3f} s', flush=True)
+  # print(f'{min_time:.3f} s', flush=True)
+  format_float = functools.partial(
+      np.format_float_positional, fractional=False, unique=False)
+  text = (f'{format_float(min_time, 3)} s' if min_time >= 1.0 else
+          f'{format_float(min_time*1e3, 3)} ms' if min_time > 1.0 / 1e3 else
+          f'{format_float(min_time*1e6, 3)} µs' if min_time > 1.0 / 1e6 else
+          f'{format_float(min_time*1e6, 2)} µs')
+  print(text, flush=True)
 
 
 ## Profiling
@@ -607,8 +638,8 @@ def temporary_assignment(variables: Dict[str, Any], name: str,
   """Temporarily assign `value` to the variable named `name` in `variables`.
 
   Args:
-    variables: Usually the `globals()` of the caller module.  Note that
-      `locals()` does not work as it should not be modified.
+    variables: Usually the `globals()` of the caller module.  Note that a
+      function-scope `locals()` does not work as it should not be modified.
     name: Name of the variable in `variables` to temporarily assign.
     value: Value assigned to `name` in the lifetime of the context.
 
@@ -1785,17 +1816,37 @@ class UnionFind:
     self._rep: Dict[Any, Any] = {}
 
   def union(self, a: Any, b: Any) -> None:
-    """Merge the equivalence class of b into that of a."""
+    """Merge the equivalence class of b into that of a.
+
+    >>> union_find = UnionFind()
+    >>> union_find.union(1, 2)
+    >>> assert union_find.same(1, 2) and not union_find.same(2, 3)
+    """
     rep_a, rep_b = self.find(a), self.find(b)
     self._rep[rep_b] = rep_a
 
   def same(self, a: Any, b: Any) -> bool:
-    """Return whether a and b are in the same equivalence class."""
+    """Return whether a and b are in the same equivalence class.
+
+    >>> union_find = UnionFind()
+    >>> assert not union_find.same((1, 2), (2, 3))
+    >>> union_find.union((1, 2), (2, 3))
+    >>> assert union_find.same((1, 2), (2, 3))
+    """
     result: bool = self.find(a) == self.find(b)
     return result
 
   def find(self, a: Any) -> Any:
-    """Return a representative for the class of a; valid until next union()."""
+    """Return a representative for the class of a; valid until next union().
+
+    >>> union_find = UnionFind()
+    >>> union_find.union('a', 'b')
+    >>> check_eq(union_find.find('a'), 'a')
+    >>> check_eq(union_find.find('b'), 'a')
+    >>> check_eq(union_find.find('c'), 'c')
+    >>> union_find.union('d', 'a')
+    >>> check_eq(union_find.find('b'), 'd')
+    """
     if a not in self._rep:
       return a
     parents = []
