@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.2'
+__version__ = '0.8.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -378,6 +378,32 @@ def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
   return get_time_and_result(func, **kwargs)[0]
 
 
+def format_float(value: float, precision: int) -> str:
+  """Return non-scientific repr. of value with specified digits of precision.
+
+  >>> format_float(1234, 3)
+  '1230'
+
+  >>> format_float(0.1234, 3)
+  '0.123'
+
+  >>> format_float(0.1230, 3)
+  '0.123'
+
+  >>> format_float(0.01236, 3)
+  '0.0124'
+
+  >>> format_float(123, 3)
+  '123'
+
+  >>> format_float(120, 3)
+  '120'
+  """
+  text = np.format_float_positional(
+      value, fractional=False, unique=False, precision=precision)
+  return text.rstrip('.')
+
+
 def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
   r"""Print the minimum execution time when repeatedly calling `func`.
 
@@ -388,8 +414,6 @@ def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
   """
   min_time = get_time(func, **kwargs)
   # print(f'{min_time:.3f} s', flush=True)
-  format_float = functools.partial(
-      np.format_float_positional, fractional=False, unique=False)
   text = (f'{format_float(min_time, 3)} s' if min_time >= 1.0 else
           f'{format_float(min_time*1e3, 3)} ms' if min_time > 1.0 / 1e3 else
           f'{format_float(min_time*1e6, 3)} µs' if min_time > 1.0 / 1e6 else
