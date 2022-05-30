@@ -19,7 +19,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.3'
+__version__ = '0.8.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -70,18 +70,63 @@ else:
 ## Language extensions
 
 
-def assertv(value: Optional[_T]) -> _T:
-  """Assert a value and return it; functional assert.
+def assert_value(value: Optional[_T]) -> _T:
+  """Return value after asserting it, as in a functional assert.
 
-  >>> assertv('33')
-  '33'
+  >>> assert_value('word')
+  'word'
 
-  >>> assertv([])
+  >>> assert_value(33)
+  33
+
+  >>> assert_value(0.0)
+  Traceback (most recent call last):
+  ...
+  AssertionError: 0.0
+
+  >>> assert_value([])
   Traceback (most recent call last):
   ...
   AssertionError: []
+
+  >>> assert_value(None)
+  Traceback (most recent call last):
+  ...
+  AssertionError: None
+
+  >>> assert_value(False)
+  Traceback (most recent call last):
+  ...
+  AssertionError: False
   """
   assert value, value
+  return value
+
+
+def assert_not_none(value: Optional[_T]) -> _T:
+  """Return value after asserting that it is not None.
+
+  >>> assert_not_none('word')
+  'word'
+
+  >>> assert_not_none(0)
+  0
+
+  >>> assert_not_none('')
+  ''
+
+  >>> assert_not_none(())
+  ()
+
+  >>> assert_not_none(False)
+  False
+
+  >>> assert_not_none(None)
+  Traceback (most recent call last):
+  ...
+  AssertionError
+  """
+  assert value is not None
   return value
 
 
@@ -470,7 +515,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   post_header = False
   for line in lines:
     if post_header:
-      tottime_str, cumtime_str, name = assertv(re.fullmatch(
+      tottime_str, cumtime_str, name = assert_value(re.fullmatch(
           r'\s*\S+\s+(\S+)\s+\S+\s+(\S+)\s+\S+\s+(\S.*)', line)).groups()
       tottime, cumtime = float(tottime_str), float(cumtime_str)
       beautified_name = beautify_function_name(name)
@@ -484,7 +529,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
           output.append(line.replace(name, beautified_name))
     elif ' function calls ' in line:
       overall_time = float(
-          assertv(re.search(r' in (\S+) seconds', line)).group(1))
+          assert_value(re.search(r' in (\S+) seconds', line)).group(1))
       output.append(f'Prun: tottime {overall_time:8.3f} overall_cumtime')
     elif line.lstrip().startswith('ncalls '):
       if mode == 'full':
