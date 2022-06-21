@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- fill-column: 80; -*-
 """Library of Python tools -- Hugues Hoppe.
 # pylint: disable=line-too-long
 
@@ -19,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.4'
+__version__ = '0.8.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -46,8 +47,8 @@ import tempfile  # pylint:disable=unused-import
 import time
 import traceback
 import typing
-from typing import Any, Callable, Dict, Generator, Iterable
-from typing import Iterator, List, Mapping, Optional, Sequence, Set
+from typing import Any, Callable, Dict, Iterable, Iterator
+from typing import List, Mapping, Optional, Sequence, Set
 from typing import Tuple, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import
 
@@ -703,7 +704,7 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
 
 @contextlib.contextmanager
 def temporary_assignment(variables: Dict[str, Any], name: str,
-                         value: Any) -> Generator[None, None, None]:
+                         value: Any) -> Iterator[None]:
   """Temporarily assign `value` to the variable named `name` in `variables`.
 
   Args:
@@ -803,6 +804,69 @@ def terse_str(cls: type) -> type:
   return cls
 
 
+## Memoization
+
+
+def selective_lru_cache(*args: Any, ignore_kwargs: Tuple[str, ...] = (),
+                        **kwargs: Any) -> Callable[[_F], _F]:
+  """Like `functools.lru_cache` but memoization can ignore specified kwargs.
+
+  Because `lru_cache` is unaware of default keyword values, it is recommended
+  that the parameters named in `ignore_kwargs` not have defaults in the
+  decorated function.  Inspired by https://stackoverflow.com/a/30738279
+
+  >>> @selective_lru_cache(ignore_kwargs=('kw1'))
+  ... def func(arg1: int, *, kw1: bool):
+  ...   print(arg1, kw1)
+  ...   return arg1
+
+  >>> func(1, kw1=True)
+  1 True
+  1
+
+  >>> func(2, kw1=False)
+  2 False
+  2
+
+  >>> func(1, kw1=False)
+  1
+  """
+  lru_decorator: Callable[[_F], _F] = functools.lru_cache(*args, **kwargs)
+
+  class Equals:
+    """Wraps an object to replace its equality test and hash function."""
+
+    def __init__(self, o: Any) -> None:
+      self.obj = o
+
+    def __eq__(self, other: Any) -> bool:
+      return True
+
+    def __hash__(self) -> int:
+      return 0
+
+  def decorator(func: _F) -> _F:
+    @lru_decorator
+    def helper(*args: Any, **kwargs: Any) -> Any:
+      kwargs = {k: (v.obj if k in ignore_kwargs else v)
+                for k, v in kwargs.items()}
+      return func(*args, **kwargs)
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+      kwargs = {k: (Equals(v) if k in ignore_kwargs else v)
+                for k, v in kwargs.items()}
+      return helper(*args, **kwargs)
+
+    for attribute in ['cache_clear', 'cache_info', 'cache_parameters']:
+      value = getattr(helper, attribute, None)
+      if value:  # 'cache_parameters' added only in Python 3.9.
+        setattr(wrapper, attribute, value)
+    return typing.cast(_F, wrapper)
+
+  return decorator
+
+
 ## Imports and modules
 
 
@@ -852,7 +916,7 @@ def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
 
 
 @contextlib.contextmanager
-def timing(description: str = 'Timing') -> Generator[None, None, None]:
+def timing(description: str = 'Timing') -> Iterator[None]:
   """Context that reports elapsed time.
 
   Example:

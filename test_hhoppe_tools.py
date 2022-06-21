@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
+# -*- fill-column: 80; -*-
 """Tests for hhoppe_tools module."""
+
+from typing import Any, List
+
 import numpy as np
 import hhoppe_tools as hh
 
@@ -63,6 +67,35 @@ def test_noop_decorator() -> None:
   hh.check_eq(func2(1), 2)
   hh.check_eq(func3(1), 2)
   hh.check_eq(func4(1), 2)
+
+
+def test_selective_lru_cache() -> None:
+  """Test `selective_lru_cache` where we ignore two keyword parameters."""
+  called_args = []
+
+  @hh.selective_lru_cache(maxsize=None, ignore_kwargs=('kw1', 'kw2'))
+  def func1(arg1: int, *,
+            kw0: bool, kw1: bool, kw2: bool, kw3: bool = False) -> int:
+    """Dummy test function."""
+    nonlocal called_args
+    called_args = [arg1, kw0, kw1, kw2, kw3]
+    return arg1 + int(kw0) + int(kw3)
+
+  def f(*args: Any, expected: List[Any], **kwargs: Any) -> None:
+    nonlocal called_args
+    called_args = []
+    func1(*args, **kwargs)
+    hh.check_eq(called_args, expected)
+
+  f(1, kw0=False, kw1=False, kw2=False, kw3=False,
+      expected=[1, False, False, False, False])
+  f(1, kw0=False, kw1=False, kw2=False, kw3=False, expected=[])
+  f(2, kw0=False, kw1=False, kw2=False, kw3=False,
+      expected=[2, False, False, False, False])
+  f(2, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
+  f(2, kw0=True, kw1=True, kw2=True, kw3=True,
+      expected=[2, True, True, True, True])
+  f(1, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
 
 
 # Would require adding a "test_requires=['IPython']" in setup.py.
