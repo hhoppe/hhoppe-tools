@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.5'
+__version__ = '0.8.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -29,6 +29,7 @@ import contextlib
 import cProfile
 import dataclasses
 import doctest
+import enum
 import functools
 import gc
 import io  # pylint: disable=unused-import
@@ -270,6 +271,62 @@ def show(*args: Any) -> None:
   'a = <string>, literal_string, s, a * 2 = <string><string>, 34 // 3 = 11\n'
   """
   print(dump_vars(*args), flush=True)
+
+
+def analyze_lru_caches(variables: Mapping[str, Any]) -> None:
+  """Report on usage and efficiency of memoization caches.
+
+  Args:
+    variables: Dictionary, which is usually `globals()`.
+
+  >>> @functools.lru_cache(maxsize=None)
+  ... def func(i: int) -> int:
+  ...   return i**2
+
+  >>> [func(i) for i in [1, 2, 1, 3, 1]]
+  [1, 4, 1, 9, 1]
+  >>> analyze_lru_caches(globals())
+  ...  # doctest:+ELLIPSIS
+  # func ...  3/inf        0.400 hit=            2 miss=            3
+  """
+  for name, value in variables.items():
+    try:
+      info = value.cache_info()
+    except AttributeError:
+      continue
+
+    hit_ratio = info.hits / (info.hits + info.misses + 1e-30)
+    s_max_size = 'inf' if info.maxsize is None else f'{info.maxsize:_}'
+    name2 = f'{name:31}' if len(name) <= 31 else f'{name[:15]}..{name[-14:]}'
+    print(f'# {name2} {info.currsize:11_}/{s_max_size:<10}'
+          f' {hit_ratio:5.3f} hit={info.hits:13_} miss={info.misses:13_}')
+
+
+def clear_lru_caches(variables: Mapping[str, Any], *,
+                     verbose: bool = False) -> None:
+  """Clear all the function memoization caches.
+
+  Args:
+    variables: Dictionary, which is usually `globals()`.
+    verbose: If True, show names of cleared caches.
+
+  >>> @functools.lru_cache(maxsize=None)
+  ... def func(i: int) -> int:
+  ...   return i**2
+
+  >>> [func(i) for i in [1, 2, 1, 3, 1]]
+  [1, 4, 1, 9, 1]
+  >>> check_eq(func.cache_info().currsize, 3)
+  >>> clear_lru_caches(globals())
+  >>> check_eq(func.cache_info().hits, 0)
+  """
+  for name, value in variables.items():
+    try:
+      value.cache_clear()
+      if verbose:
+        print(f'Cleared lru_cache for {name}().')
+    except AttributeError:
+      pass
 
 
 ## Jupyter/IPython notebook functionality
@@ -540,6 +597,40 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   print('\n'.join([f'#{" " * bool(line)}' + line for line in output]))
 
 
+## Class objects
+
+
+class OrderedEnum(enum.Enum):
+  """Enum supporting comparisons, sort, and max.
+
+  >>> class MyEnum(OrderedEnum):
+  ...   VALUE1 = enum.auto()
+  >>> assert hash(MyEnum.VALUE1)
+  >>> assert MyEnum.VALUE1 <= MyEnum.VALUE1
+  """
+  # https://docs.python.org/3/library/enum.html
+
+  def __ge__(self, other: 'OrderedEnum') -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return typing.cast(bool, self.value >= other.value)
+
+  def __gt__(self, other: 'OrderedEnum') -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return typing.cast(bool, self.value > other.value)
+
+  def __le__(self, other: 'OrderedEnum') -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return typing.cast(bool, self.value <= other.value)
+
+  def __lt__(self, other: 'OrderedEnum') -> bool:
+    if self.__class__ is not other.__class__:
+      return NotImplemented
+    return typing.cast(bool, self.value < other.value)
+
+
 ## Operations on iterables
 
 
@@ -671,6 +762,23 @@ def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
   s = list(iterable)
   return itertools.chain.from_iterable(
       itertools.combinations(s, r) for r in range(len(s) + 1))
+
+
+def unique_permutations(elements: Sequence[_T]) -> Iterator[Tuple[_T, ...]]:
+  """Yields unique permutations; see https://stackoverflow.com/a/30558049 .
+
+  >>> list(unique_permutations([1, 2, 1]))
+  [(1, 1, 2), (1, 2, 1), (2, 1, 1)]
+  """
+  if len(elements) == 1:
+    yield (elements[0],)
+  else:
+    unique_elements = set(elements)
+    for first_element in unique_elements:
+      remaining_elements = list(elements)
+      remaining_elements.remove(first_element)
+      for sub_permutation in unique_permutations(remaining_elements):
+        yield first_element, *sub_permutation
 
 
 def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
