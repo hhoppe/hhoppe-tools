@@ -778,7 +778,7 @@ def unique_permutations(elements: Sequence[_T]) -> Iterator[Tuple[_T, ...]]:
       remaining_elements = list(elements)
       remaining_elements.remove(first_element)
       for sub_permutation in unique_permutations(remaining_elements):
-        yield first_element, *sub_permutation
+        yield (first_element, *sub_permutation)
 
 
 def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
