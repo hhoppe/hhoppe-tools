@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.6'
+__version__ = '0.8.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -380,7 +380,7 @@ class _CellTimer:
   def show_times(self, n: Optional[int] = None, sort: bool = False) -> None:
     """Print notebook cell timings."""
     import IPython
-    print(f'Total time: {sum(self.elapsed_times.values()):.2f} s')
+    print(f'# Total time: {sum(self.elapsed_times.values()):.2f} s')
     times = list(self.elapsed_times.items())
     times = sorted(times, key=lambda x: x[sort], reverse=sort)
     # https://github.com/ipython/ipython/blob/master/IPython/core/history.py
@@ -390,7 +390,10 @@ class _CellTimer:
     inputs = {index: text for unused_session, index, text in history_range}
     for input_index, elapsed_time in itertools.islice(times, n):
       cell_input = inputs[input_index]
-      print(f'In[{input_index:3}] {cell_input!r:60.60} {elapsed_time:6.3f} s')
+      text = repr(cell_input)[1:-1][:59]
+      text = re.sub(r'# pylint:', '# pylinX:', text)
+      text = re.sub(r'[A-Za-z\\]+$', '', text)
+      print(f'# In[{input_index:3}] {text:59} {elapsed_time:6.3f} s')
 
 
 def start_timing_notebook_cells() -> None:
