@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.7'
+__version__ = '0.8.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -431,9 +431,10 @@ def get_time_and_result(func: Callable[[], Any], *,
 
   Args:
     func: Function to time.
-    max_repeat: Maximum number of timing measurements across which to compute
+    max_repeat: Maximum number of batch measurements across which to compute
       the minimum value.
     max_time: Desired maximum total time in obtaining timing measurements.
+      If set to zero, a single timing measurement is taken.
 
   Returns:
     minimum_time: The smallest time (in seconds) measured across the repeated
@@ -445,7 +446,7 @@ def get_time_and_result(func: Callable[[], Any], *,
   >>> result
   33
   """
-  assert callable(func) and max_repeat > 0 and max_time > 0.0
+  assert callable(func) and max_repeat > 0 and max_time >= 0.0
   result = None
   gc_was_enabled = gc.isenabled()
   batch_size = 1
@@ -457,7 +458,7 @@ def get_time_and_result(func: Callable[[], Any], *,
       sum_time = 0.0
       min_time = math.inf
       start = time.monotonic()
-      while num_repeat < max_repeat and sum_time < max_time:
+      while num_repeat < max_repeat and sum_time <= max_time:
         for _ in range(batch_size):
           result = func()
         stop = time.monotonic()
@@ -466,7 +467,7 @@ def get_time_and_result(func: Callable[[], Any], *,
         num_repeat += 1
         sum_time += elapsed
         min_time = min(min_time, elapsed)
-      if min_time >= smallest_acceptable_batch_time:
+      if min_time >= min(smallest_acceptable_batch_time, max_time):
         break
       batch_size *= 10
   finally:
