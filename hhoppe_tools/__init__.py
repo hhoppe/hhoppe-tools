@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.8'
+__version__ = '0.8.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -151,8 +151,8 @@ def check_eq(a: Any, b: Any) -> None:
   ...
   AssertionError: 3 == 4
   """
-  check_fails = np.any(a != b) if isinstance(a, np.ndarray) else a != b
-  if check_fails:
+  equal = np.all(a == b) if isinstance(a, np.ndarray) else a == b
+  if not equal:
     raise AssertionError(f'{a!r} == {b!r}')
 
 
@@ -544,6 +544,8 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   """
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
+  site_packages = np.__path__[0][:-5]
+  assert site_packages.endswith('/site-packages/')
 
   profile = cProfile.Profile()
   try:
