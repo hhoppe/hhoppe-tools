@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.8.9'
+__version__ = '0.9.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
