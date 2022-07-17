@@ -572,6 +572,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
     name = re.sub(r'^([^:()]+):(\d+)\((.+)\)$', r'\3 (\1:\2)', name)
     name = re.sub(r'^\{(\S+)\}$', r'\1', name)
     name = re.sub(r' \(/tmp/ipykernel.*\.py:', r' (/tmp/ipykernel:', name)
+    name = name.replace(site_packages, '')
     return name
 
   output = []
