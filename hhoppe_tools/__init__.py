@@ -549,7 +549,6 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   ...   lines = m.getvalue().splitlines()
   >>> assert lines[0].startswith('# Prun: tottime ')
   >>> assert 'overall_cumtime' in lines[0]
-  >>> assert len(lines) >= 4
   """
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
