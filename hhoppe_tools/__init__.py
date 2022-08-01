@@ -20,7 +20,7 @@ gpylint hhoppe_tools.py
 """
 
 __docformat__ = 'google'
-__version__ = '0.9.1'
+__version__ = '0.9.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -69,7 +69,7 @@ else:
   _Path = Union[str, os.PathLike]
 
 
-## Language extensions
+# ** Language extensions
 
 
 def assert_value(value: Optional[_T]) -> _T:
@@ -132,7 +132,7 @@ def assert_not_none(value: Optional[_T]) -> _T:
   return value
 
 
-## Debugging output
+# ** Debugging output
 
 
 def check_eq(a: Any, b: Any) -> None:
@@ -329,7 +329,7 @@ def clear_lru_caches(variables: Mapping[str, Any], *,
       pass
 
 
-## Jupyter/IPython notebook functionality
+# ** Jupyter/IPython notebook functionality
 
 
 def in_colab() -> bool:
@@ -339,10 +339,19 @@ def in_colab() -> bool:
   False
   """
   try:
-    import google.colab  # pylint: disable=unused-import
+    import google.colab  # pylint: disable=unused-import # noqa
     return True
   except ModuleNotFoundError:
     return False
+
+
+def adjust_jupyterlab_markdown_width(width: int = 1016) -> None:
+  """Set the Markdown cell width in Jupyterlab to the value used by Colab."""
+  # https://stackoverflow.com/a/66278615.
+  import IPython.display
+  style = f'{{max-width: {width}px!important;}}'
+  text = f'<style>.jp-Cell.jp-MarkdownCell {style}</style>'
+  IPython.display.display(IPython.display.HTML(text))
 
 
 class _CellTimer:
@@ -417,7 +426,7 @@ def show_notebook_cell_top_times() -> None:
     _CellTimer.instance.show_times(n=20, sort=True)
 
 
-## Timing
+# ** Timing
 
 
 def get_time_and_result(func: Callable[[], Any], *,
@@ -528,7 +537,7 @@ def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
   print(text, flush=True)
 
 
-## Profiling
+# ** Profiling
 
 
 def prun(func: Callable[[], Any], mode: str = 'tottime',
@@ -536,7 +545,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   """Profile the function call and print reformatted statistics.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
-  ...   prun(lambda: np.linalg.qr(np.random.random((400, 400))))
+  ...   prun(lambda: np.linalg.qr(np.ones((400, 400))))
   ...   lines = m.getvalue().splitlines()
   >>> assert lines[0].startswith('# Prun: tottime ')
   >>> assert 'overall_cumtime' in lines[0]
@@ -604,7 +613,7 @@ def prun(func: Callable[[], Any], mode: str = 'tottime',
   print('\n'.join([f'#{" " * bool(line)}' + line for line in output]))
 
 
-## Class objects
+# ** Class objects
 
 
 class OrderedEnum(enum.Enum):
@@ -638,7 +647,7 @@ class OrderedEnum(enum.Enum):
     return typing.cast(bool, self.value < other.value)
 
 
-## Operations on iterables
+# ** Operations on iterables
 
 
 def repeat_each(iterable: Iterable[_T], n: int) -> Iterator[_T]:
@@ -814,7 +823,7 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
   return first, iterator_reinitialized
 
 
-## Temporary variable assignment
+# ** Temporary variable assignment
 
 
 @contextlib.contextmanager
@@ -835,7 +844,7 @@ def temporary_assignment(variables: Dict[str, Any], name: str,
 
   >>> assert 'var2' not in globals()
   >>> with temporary_assignment(globals(), 'var2', '1'):
-  ...   check_eq(var2, '1')
+  ...   check_eq(var2, '1')  # noqa
   >>> assert 'var2' not in globals()
   """
   # https://stackoverflow.com/a/57226721.
@@ -848,7 +857,7 @@ def temporary_assignment(variables: Dict[str, Any], name: str,
     variables[name] = old_value
 
 
-## Meta programming
+# ** Meta programming
 
 
 @typing.overload  # Bare decorator.
@@ -919,7 +928,7 @@ def terse_str(cls: type) -> type:
   return cls
 
 
-## Memoization
+# ** Memoization
 
 
 def selective_lru_cache(*args: Any, ignore_kwargs: Tuple[str, ...] = (),
@@ -982,7 +991,7 @@ def selective_lru_cache(*args: Any, ignore_kwargs: Tuple[str, ...] = (),
   return decorator
 
 
-## Imports and modules
+# ** Imports and modules
 
 
 # If placing this code in a package, rename this file to __init__.py
@@ -1027,7 +1036,7 @@ def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
   return module
 
 
-## System functions
+# ** System functions
 
 
 @contextlib.contextmanager
@@ -1096,7 +1105,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
     print(f'{name:24} {vartype:20} {size:_}')
 
 
-## Mathematics
+# ** Mathematics
 
 
 def as_float(a: Any) -> _NDArray:
@@ -1314,7 +1323,7 @@ def diagnostic(a: Any) -> str:
           f' zero={(finite == 0).sum()}')
 
 
-## Statistics
+# ** Statistics
 
 
 class Stats:
@@ -1521,7 +1530,7 @@ class Stats:
         self._size * n, self._sum * n, self._sum2 * n, self._min, self._max)
 
 
-## Numpy operations
+# ** Numpy operations
 
 
 def array_always(a: Any) -> _NDArray:
@@ -1940,9 +1949,10 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   tail_dims = arrays[0].shape[len(shape):]
   if any(array.shape[len(shape):] != tail_dims for array in arrays):
     raise ValueError(f'Shapes of {arrays} do not all end in {tail_dims}')
-  align = np.broadcast_to(align, (num, len(shape)))
-  spacing = np.broadcast_to(spacing, (len(shape)))
-  round_to_even = np.broadcast_to(round_to_even, (len(shape)))
+  align2 = np.broadcast_to(np.array(align), (num, len(shape)))
+  spacing2 = np.broadcast_to(np.array(spacing), len(shape))
+  round_to_even2 = np.broadcast_to(round_to_even, len(shape))
+  del align, spacing, round_to_even
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
   head_dims = np.array([list(array.shape[:len(shape)]) for array in arrays] +
@@ -1956,18 +1966,19 @@ def assemble_arrays(arrays: Sequence[_NDArray],
     # Find the length of each slice along axis as the max over its arrays.
     lengths = all_lengths.max(axis=tuple(range(1, len(shape))))
     # Compute the dimension of the output axis.
-    total_length = lengths.sum() + spacing[axis] * (shape_axis - 1)
-    if round_to_even[axis] and total_length % 2 == 1:
+    total_length = lengths.sum() + spacing2[axis] * (shape_axis - 1)
+    if round_to_even2[axis] and total_length % 2 == 1:
       lengths[-1] += 1  # Lengthen the last slice so the axis dimension is even.
     axis_lengths.append(lengths)
     # Insert inter-element padding spaces.
     spaced_lengths = np.insert(lengths, 0, 0)
-    spaced_lengths[1:-1] += spacing[axis]
+    spaced_lengths[1:-1] += spacing2[axis]
     # Compute slice positions along axis as cumulative sums of slice lengths.
     axis_origins.append(spaced_lengths.cumsum())
 
   # [shape] -> smallest corner coords in output array.
-  origins = np.moveaxis(np.meshgrid(*axis_origins, indexing='ij'), 0, -1)
+  origins = np.moveaxis(np.array(np.meshgrid(*axis_origins, indexing='ij')),
+                        0, -1)
 
   # Initialize the output array.
   output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
@@ -1989,7 +2000,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
       start = origins[coords][axis]
       length = axis_lengths[axis][coords[axis]]
       extent = array.shape[axis]
-      aligned_start = start + offset(length, extent, align[i][axis])
+      aligned_start = start + offset(length, extent, align2[i][axis])
       slices.append(slice(aligned_start, aligned_start + extent))
     output_array[tuple(slices)] = array
 
@@ -2029,7 +2040,7 @@ def shift(array: Any, offset: Any, constant_values: Any = 0) -> _NDArray:
   return new_array
 
 
-## Graph algorithms
+# ** Graph algorithms
 
 
 class UnionFind:
@@ -2153,7 +2164,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
   return result[::-1]
 
 
-## Search algorithms
+# ** Search algorithms
 
 
 def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
@@ -2184,7 +2195,7 @@ def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
   return xl
 
 
-## General I/O
+# ** General I/O
 
 
 def write_contents(path: str, data: Union[str, bytes]) -> None:
@@ -2217,7 +2228,7 @@ def is_executable(path: _Path) -> bool:
   return bool(pathlib.Path(path).stat().st_mode & stat.S_IEXEC)
 
 
-## OS commands
+# ** OS commands
 
 
 def run(args: Union[str, Sequence[str]]) -> None:
