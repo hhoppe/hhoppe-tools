@@ -88,13 +88,13 @@ def test_selective_lru_cache() -> None:
     hh.check_eq(called_args, expected)
 
   f(1, kw0=False, kw1=False, kw2=False, kw3=False,
-      expected=[1, False, False, False, False])
+    expected=[1, False, False, False, False])
   f(1, kw0=False, kw1=False, kw2=False, kw3=False, expected=[])
   f(2, kw0=False, kw1=False, kw2=False, kw3=False,
-      expected=[2, False, False, False, False])
+    expected=[2, False, False, False, False])
   f(2, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
   f(2, kw0=True, kw1=True, kw2=True, kw3=True,
-      expected=[2, True, True, True, True])
+    expected=[2, True, True, True, True])
   f(1, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
 
 

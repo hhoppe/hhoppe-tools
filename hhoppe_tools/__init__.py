@@ -19,6 +19,7 @@ gpylint hhoppe_tools.py
 # pylint: enable=line-too-long
 """
 
+from __future__ import annotations
 __docformat__ = 'google'
 __version__ = '0.9.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
@@ -48,9 +49,8 @@ import tempfile  # pylint:disable=unused-import
 import time
 import traceback
 import typing
-from typing import Any, Callable, Dict, Iterable, Iterator
-from typing import List, Mapping, Optional, Sequence, Set
-from typing import Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, Iterator, List
+from typing import Mapping, Sequence, Set, Tuple, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import
 
 import numpy as np
@@ -72,7 +72,7 @@ else:
 # ** Language extensions
 
 
-def assert_value(value: Optional[_T]) -> _T:
+def assert_value(value: _T | None) -> _T:
   """Return value after asserting it, as in a functional assert.
 
   >>> assert_value('word')
@@ -105,7 +105,7 @@ def assert_value(value: Optional[_T]) -> _T:
   return value
 
 
-def assert_not_none(value: Optional[_T]) -> _T:
+def assert_not_none(value: _T | None) -> _T:
   """Return value after asserting that it is not None.
 
   >>> assert_not_none('word')
@@ -358,7 +358,7 @@ class _CellTimer:
   """Record timings of all notebook cells and show top entries at the end."""
   # Inspired from https://github.com/cpcloud/ipython-autotime.
 
-  instance: Optional['_CellTimer'] = None
+  instance: _CellTimer | None = None
 
   def __init__(self) -> None:
     import IPython
@@ -386,7 +386,7 @@ class _CellTimer:
       input_index -= 1
     self.elapsed_times[input_index] = elapsed_time
 
-  def show_times(self, n: Optional[int] = None, sort: bool = False) -> None:
+  def show_times(self, n: int | None = None, sort: bool = False) -> None:
     """Print notebook cell timings."""
     import IPython
     print(f'# Total time: {sum(self.elapsed_times.values()):.2f} s')
@@ -540,8 +540,9 @@ def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
 # ** Profiling
 
 
-def prun(func: Callable[[], Any], mode: str = 'tottime',
-         top: Optional[int] = None) -> None:
+def prun(func: Callable[[], Any],
+         mode: str = 'tottime',
+         top: int | None = None) -> None:
   """Profile the function call and print reformatted statistics.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
@@ -625,22 +626,22 @@ class OrderedEnum(enum.Enum):
   """
   # https://docs.python.org/3/library/enum.html
 
-  def __ge__(self, other: 'OrderedEnum') -> bool:
+  def __ge__(self, other: OrderedEnum) -> bool:
     if self.__class__ is not other.__class__:
       return NotImplemented
     return typing.cast(bool, self.value >= other.value)
 
-  def __gt__(self, other: 'OrderedEnum') -> bool:
+  def __gt__(self, other: OrderedEnum) -> bool:
     if self.__class__ is not other.__class__:
       return NotImplemented
     return typing.cast(bool, self.value > other.value)
 
-  def __le__(self, other: 'OrderedEnum') -> bool:
+  def __le__(self, other: OrderedEnum) -> bool:
     if self.__class__ is not other.__class__:
       return NotImplemented
     return typing.cast(bool, self.value <= other.value)
 
-  def __lt__(self, other: 'OrderedEnum') -> bool:
+  def __lt__(self, other: OrderedEnum) -> bool:
     if self.__class__ is not other.__class__:
       return NotImplemented
     return typing.cast(bool, self.value < other.value)
@@ -690,8 +691,8 @@ def only(iterable: Iterable[_T]) -> _T:
 
 def grouped(iterable: Iterable[_T],
             n: int,
-            fillvalue: Optional[_T] = None,
-            ) -> Iterator[Tuple[Optional[_T], ...]]:
+            fillvalue: _T | None = None,
+            ) -> Iterator[Tuple[_T | None, ...]]:
   """Return elements collected into fixed-length chunks.
 
   >>> list(grouped('ABCDEFG', 3, 'x'))
@@ -715,7 +716,7 @@ def grouped(iterable: Iterable[_T],
 
 
 def chunked(iterable: Iterable[_T],
-            n: Optional[int] = None,
+            n: int | None = None,
             ) -> Iterator[Tuple[_T, ...]]:
   """Return elements collected as tuples of length at most 'n' if not None.
 
@@ -1143,13 +1144,13 @@ def as_float(a: Any) -> _NDArray:
   return a.astype(dtype)
 
 
-def normalize(a: Any, axis: Optional[int] = None) -> _NDArray:
+def normalize(a: Any, axis: int | None = None) -> _NDArray:
   """Return array 'a' scaled such that its elements have unit 2-norm.
 
   Args:
     a: Input array.
-    axis: Optional axis.  If None, normalizes the entire matrix.  Otherwise,
-      normalizes each element along the specified axis.
+    axis: If None, normalizes the entire matrix.  Otherwise, normalizes each
+      element along the specified axis.
 
   Returns:
     An array such that its elements along 'axis' are rescaled to have L2 norm
@@ -1178,7 +1179,7 @@ def normalize(a: Any, axis: Optional[int] = None) -> _NDArray:
     return a / norm
 
 
-def rms(a: Any, axis: Optional[int] = None) -> Union[float, _NDArray]:
+def rms(a: Any, axis: int | None = None) -> float | _NDArray:
   """Return the root mean square of the array values.
 
   >>> rms([3.0])
@@ -1509,7 +1510,7 @@ class Stats:
     return ((self._size, self._sum, self._sum2, self._min, self._max) ==
             (other._size, other._sum, other._sum2, other._min, other._max))
 
-  def __add__(self, other: 'Stats') -> 'Stats':
+  def __add__(self, other: Stats) -> Stats:
     """Return combined statistics.
 
     >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
@@ -1519,7 +1520,7 @@ class Stats:
                  self._sum2 + other._sum2, min(self._min, other._min),
                  max(self._max, other._max))
 
-  def __mul__(self, n: int) -> 'Stats':
+  def __mul__(self, n: int) -> Stats:
     """Return statistics whereby each element appears 'n' times.
 
     >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
@@ -1643,7 +1644,7 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
 
 
 def grid_from_string(string: str,
-                     int_from_ch: Optional[Mapping[str, int]] = None,
+                     int_from_ch: Mapping[str, int] | None = None,
                      dtype: Any = None) -> _NDArray:
   r"""Return a 2D array created from a multiline string.
 
@@ -1686,7 +1687,7 @@ def grid_from_string(string: str,
 
 
 def string_from_grid(grid: Any,
-                     ch_from_int: Optional[Mapping[int, str]] = None) -> str:
+                     ch_from_int: Mapping[int, str] | None = None) -> str:
   r"""Return a multiline string created from a 2D array.
 
   Args:
@@ -1718,14 +1719,15 @@ def string_from_grid(grid: Any,
   return '\n'.join(lines)
 
 
-def grid_from_indices(iterable_or_map: Union[Iterable[Sequence[int]],
-                                             Mapping[Sequence[int], Any]],
-                      background: Any = 0,
-                      foreground: Any = 1,
-                      indices_min: Optional[Union[int, Sequence[int]]] = None,
-                      indices_max: Optional[Union[int, Sequence[int]]] = None,
-                      pad: Union[int, Sequence[int]] = 0,
-                      dtype: Any = None) -> _NDArray:
+def grid_from_indices(
+    iterable_or_map: Iterable[Sequence[int]] | Mapping[Sequence[int], Any],
+    background: Any = 0,
+    foreground: Any = 1,
+    indices_min: int | Sequence[int] | None = None,
+    indices_max: int | Sequence[int] | None = None,
+    pad: int | Sequence[int] = 0,
+    dtype: Any = None
+) -> _NDArray:
   r"""Return an array from (sparse) indices or from a map {index: value}.
 
   Indices are sequences of integers with some length D, which determines the
@@ -1834,7 +1836,7 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
                       cmap: Mapping[Any, Tuple[numbers.Integral,
                                                numbers.Integral,
                                                numbers.Integral]],
-                      pad: Union[int, Sequence[int]] = 0) -> _NDArray:
+                      pad: int | Sequence[int] = 0) -> _NDArray:
   """Return image from mapping {yx: value} and cmap = {value: rgb}.
 
   >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
@@ -2197,7 +2199,7 @@ def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
 # ** General I/O
 
 
-def write_contents(path: str, data: Union[str, bytes]) -> None:
+def write_contents(path: str, data: str | bytes) -> None:
   """Write data (either utf-8 string or bytes) to file.
 
   >>> with tempfile.TemporaryDirectory() as dir:
@@ -2230,7 +2232,7 @@ def is_executable(path: _Path) -> bool:
 # ** OS commands
 
 
-def run(args: Union[str, Sequence[str]]) -> None:
+def run(args: str | Sequence[str]) -> None:
   """Execute command, printing output from stdout and stderr.
 
   Args:
