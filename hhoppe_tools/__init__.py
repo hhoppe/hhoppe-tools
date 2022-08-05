@@ -21,11 +21,12 @@ gpylint hhoppe_tools.py
 
 from __future__ import annotations
 __docformat__ = 'google'
-__version__ = '0.9.2'
+__version__ = '0.9.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
 import collections.abc
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
 import cProfile
 import dataclasses
@@ -49,18 +50,20 @@ import tempfile  # pylint:disable=unused-import
 import time
 import traceback
 import typing
-from typing import Any, Callable, Dict, Iterable, Iterator, List
-from typing import Mapping, Sequence, Set, Tuple, TypeVar, Union
+from typing import Any, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import
 
 import numpy as np
+import numpy.typing as npt
 
 _T = TypeVar('_T')
-_F = TypeVar('_F', bound=Callable[..., Any])
+_F = TypeVar('_F', bound='Callable[..., Any]')
+
 _UNDEFINED = object()
 
-# _NDArray = np.ndarray[Any, Any]
-_NDArray = Any  # numpy typing is not yet mature.
+_NDArray = npt.NDArray[Any]
+_DTypeLike = npt.DTypeLike
+_ArrayLike = npt.ArrayLike
 
 # https://github.com/python/mypy/issues/5667
 if typing.TYPE_CHECKING:
@@ -362,7 +365,7 @@ class _CellTimer:
 
   def __init__(self) -> None:
     import IPython
-    self.elapsed_times: Dict[int, float] = {}
+    self.elapsed_times: dict[int, float] = {}
     self.start()
     IPython.get_ipython().events.register('pre_run_cell', self.start)
     IPython.get_ipython().events.register('post_run_cell', self.stop)
@@ -429,9 +432,9 @@ def show_notebook_cell_top_times() -> None:
 # ** Timing
 
 
-def get_time_and_result(func: Callable[[], Any], *,
+def get_time_and_result(func: Callable[[], _T], *,
                         max_repeat: int = 10,
-                        max_time: float = 2.0) -> Tuple[float, Any]:
+                        max_time: float = 2.0) -> tuple[float, _T]:
   """Call the function repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
@@ -460,6 +463,7 @@ def get_time_and_result(func: Callable[[], Any], *,
   gc_was_enabled = gc.isenabled()
   batch_size = 1
   smallest_acceptable_batch_time = 0.01  # All times are in seconds.
+
   try:
     gc.disable()
     while True:
@@ -479,10 +483,12 @@ def get_time_and_result(func: Callable[[], Any], *,
       if min_time >= min(smallest_acceptable_batch_time, max_time):
         break
       batch_size *= 10
+
   finally:
     if gc_was_enabled:
       gc.enable()
-  return min_time / batch_size, result
+
+  return min_time / batch_size, typing.cast(_T, result)
 
 
 def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
@@ -692,7 +698,7 @@ def only(iterable: Iterable[_T]) -> _T:
 def grouped(iterable: Iterable[_T],
             n: int,
             fillvalue: _T | None = None,
-            ) -> Iterator[Tuple[_T | None, ...]]:
+            ) -> Iterator[tuple[_T | None, ...]]:
   """Return elements collected into fixed-length chunks.
 
   >>> list(grouped('ABCDEFG', 3, 'x'))
@@ -717,7 +723,7 @@ def grouped(iterable: Iterable[_T],
 
 def chunked(iterable: Iterable[_T],
             n: int | None = None,
-            ) -> Iterator[Tuple[_T, ...]]:
+            ) -> Iterator[tuple[_T, ...]]:
   """Return elements collected as tuples of length at most 'n' if not None.
 
   >>> list(chunked('ABCDEFG', 3))
@@ -733,13 +739,13 @@ def chunked(iterable: Iterable[_T],
   []
   """
 
-  def take(n: int, iterable: Iterable[_T]) -> Tuple[_T, ...]:
+  def take(n: int, iterable: Iterable[_T]) -> tuple[_T, ...]:
     return tuple(itertools.islice(iterable, n))
 
   return iter(functools.partial(take, n, iter(iterable)), ())
 
 
-def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
+def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[tuple[_T, ...]]:
   """Return overlapping tuples of length `n` from `iterable`.
 
   >>> list(sliding_window('ABCDEF', 4))
@@ -765,7 +771,7 @@ def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[Tuple[_T, ...]]:
     yield tuple(window)
 
 
-def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
+def powerset(iterable: Iterable[_T]) -> Iterator[tuple[_T, ...]]:
   """Return all subsets of iterable.
 
   >>> list(powerset([1, 2, 3]))
@@ -780,7 +786,7 @@ def powerset(iterable: Iterable[_T]) -> Iterator[Tuple[_T, ...]]:
       itertools.combinations(s, r) for r in range(len(s) + 1))
 
 
-def unique_permutations(elements: Sequence[_T]) -> Iterator[Tuple[_T, ...]]:
+def unique_permutations(elements: Sequence[_T]) -> Iterator[tuple[_T, ...]]:
   """Yields unique permutations; see https://stackoverflow.com/a/30558049 .
 
   >>> list(unique_permutations([1, 2, 1]))
@@ -797,7 +803,7 @@ def unique_permutations(elements: Sequence[_T]) -> Iterator[Tuple[_T, ...]]:
         yield (first_element, *sub_permutation)
 
 
-def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
+def peek_first(iterator: Iterable[_T]) -> tuple[_T, Iterable[_T]]:
   """Given an iterator, return first element and re-initialized iterator.
 
   Example:
@@ -827,7 +833,7 @@ def peek_first(iterator: Iterable[_T]) -> Tuple[_T, Iterable[_T]]:
 
 
 @contextlib.contextmanager
-def temporary_assignment(variables: Dict[str, Any], name: str,
+def temporary_assignment(variables: dict[str, Any], name: str,
                          value: Any) -> Iterator[None]:
   """Temporarily assign `value` to the variable named `name` in `variables`.
 
@@ -887,7 +893,7 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Any:
   """
   if len(args) != 1 or not callable(args[0]) or kwargs:
     return noop_decorator  # Decorator is invoked with arguments; ignore them.
-  func: Callable[[Any], Any] = args[0]
+  func: Callable[..., Any] = args[0]
   return func
 
 
@@ -898,7 +904,7 @@ def terse_str(cls: type) -> type:
   ... @dataclasses.dataclass
   ... class TestTerseStr:
   ...   a: int = 3
-  ...   b: List[str] = dataclasses.field(default_factory=lambda: ['g', 'h'])
+  ...   b: list[str] = dataclasses.field(default_factory=lambda: ['g', 'h'])
 
   >>> str(TestTerseStr())
   'TestTerseStr()'
@@ -931,7 +937,7 @@ def terse_str(cls: type) -> type:
 # ** Memoization
 
 
-def selective_lru_cache(*args: Any, ignore_kwargs: Tuple[str, ...] = (),
+def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
                         **kwargs: Any) -> Callable[[_F], _F]:
   """Like `functools.lru_cache` but memoization can ignore specified kwargs.
 
@@ -1108,7 +1114,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
 # ** Mathematics
 
 
-def as_float(a: Any) -> _NDArray:
+def as_float(a: _ArrayLike) -> _NDArray:
   """Convert non-floating-point array to floating-point type.
 
   Args:
@@ -1144,7 +1150,7 @@ def as_float(a: Any) -> _NDArray:
   return a.astype(dtype)
 
 
-def normalize(a: Any, axis: int | None = None) -> _NDArray:
+def normalize(a: _ArrayLike, axis: int | None = None) -> _NDArray:
   """Return array 'a' scaled such that its elements have unit 2-norm.
 
   Args:
@@ -1179,7 +1185,7 @@ def normalize(a: Any, axis: int | None = None) -> _NDArray:
     return a / norm
 
 
-def rms(a: Any, axis: int | None = None) -> float | _NDArray:
+def rms(a: _ArrayLike, axis: int | None = None) -> _NDArray:
   """Return the root mean square of the array values.
 
   >>> rms([3.0])
@@ -1200,7 +1206,7 @@ def rms(a: Any, axis: int | None = None) -> float | _NDArray:
   return np.sqrt(np.mean(np.square(as_float(a)), axis, dtype=np.float64))
 
 
-def lenient_subtract(a: Any, b: Any) -> Any:
+def lenient_subtract(a: _ArrayLike, b: _ArrayLike) -> _NDArray:
   """Return a - b, but returns 0 where a and b are the same signed infinity.
 
   >>> inf = math.inf
@@ -1215,7 +1221,7 @@ def lenient_subtract(a: Any, b: Any) -> Any:
   return np.subtract(a, b, out=np.zeros_like(a), where=~same_infinity)
 
 
-def print_array(a: Any, **kwargs: Any) -> None:
+def print_array(a: _ArrayLike, **kwargs: Any) -> None:
   """Print the array.
 
   >>> print_array(np.arange(6).reshape(2, 3), file=sys.stdout)
@@ -1226,7 +1232,7 @@ def print_array(a: Any, **kwargs: Any) -> None:
   print_err(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
 
 
-def prime_factors(n: int) -> List[int]:
+def prime_factors(n: int) -> list[int]:
   """Return an ascending list of the (greather-than-one) prime factors of n.
 
   >>> prime_factors(1)
@@ -1253,7 +1259,7 @@ def prime_factors(n: int) -> List[int]:
   return factors
 
 
-def extended_gcd(a: int, b: int) -> Tuple[int, int, int]:
+def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
   """Find the greatest common divisor using the extended Euclidean algorithm.
 
   Returns:
@@ -1295,7 +1301,7 @@ def modular_inverse(a: int, b: int) -> int:
   return x % b
 
 
-def diagnostic(a: Any) -> str:
+def diagnostic(a: _ArrayLike) -> str:
   """Return a diagnostic string summarizing the values in 'a' for debugging.
 
   Args:
@@ -1533,7 +1539,7 @@ class Stats:
 # ** Numpy operations
 
 
-def array_always(a: Any) -> _NDArray:
+def array_always(a: _ArrayLike | Iterable[_ArrayLike]) -> _NDArray:
   """Return a numpy array even if a is an iterator of subarrays.
 
   >>> array_always(np.array([[1, 2], [3, 4]]))
@@ -1553,7 +1559,7 @@ def array_always(a: Any) -> _NDArray:
   return np.asarray(a)
 
 
-def bounding_slices(a: Any) -> Tuple[slice, ...]:
+def bounding_slices(a: _ArrayLike) -> tuple[slice, ...]:
   """Return the slices that bound the nonzero elements of array.
 
   >>> bounding_slices(())
@@ -1595,7 +1601,8 @@ def bounding_slices(a: Any) -> Tuple[slice, ...]:
   return tuple(slices)
 
 
-def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
+def broadcast_block(a: _NDArray,
+                    block_shape: int | tuple[int, ...]) -> _NDArray:
   """Return an array view where each element of 'a' is repeated as a block.
 
   Args:
@@ -1619,17 +1626,17 @@ def broadcast_block(a: Any, block_shape: Any) -> _NDArray:
   >>> np.all(result == np.kron(a, np.ones((2, 3), dtype=a.dtype)))
   True
   """
-  block_shape = np.broadcast_to(block_shape, (a.ndim,))
+  block_shape2 = np.broadcast_to(np.asarray(block_shape), (a.ndim,))
   # Inspired from https://stackoverflow.com/a/52339952
   # and https://stackoverflow.com/a/52346065
   shape1 = tuple(v for pair in zip(a.shape, (1,) * a.ndim) for v in pair)
-  shape2 = tuple(v for pair in zip(a.shape, block_shape) for v in pair)
-  final_shape = a.shape * block_shape
+  shape2 = tuple(v for pair in zip(a.shape, block_shape2) for v in pair)
+  final_shape = a.shape * block_shape2
   return np.broadcast_to(a.reshape(shape1), shape2).reshape(final_shape)
 
 
-def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
-                   dtype: Any = None) -> _NDArray:
+def np_int_from_ch(a: _ArrayLike, int_from_ch: Mapping[str, int],
+                   dtype: _DTypeLike = None) -> _NDArray:
   """Return array of integers by mapping from array of characters.
 
   >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
@@ -1645,7 +1652,7 @@ def np_int_from_ch(a: Any, int_from_ch: Mapping[str, int],
 
 def grid_from_string(string: str,
                      int_from_ch: Mapping[str, int] | None = None,
-                     dtype: Any = None) -> _NDArray:
+                     dtype: _DTypeLike = None) -> _NDArray:
   r"""Return a 2D array created from a multiline string.
 
   Args:
@@ -1686,7 +1693,7 @@ def grid_from_string(string: str,
   return grid
 
 
-def string_from_grid(grid: Any,
+def string_from_grid(grid: _ArrayLike,
                      ch_from_int: Mapping[int, str] | None = None) -> str:
   r"""Return a multiline string created from a 2D array.
 
@@ -1726,7 +1733,7 @@ def grid_from_indices(
     indices_min: int | Sequence[int] | None = None,
     indices_max: int | Sequence[int] | None = None,
     pad: int | Sequence[int] = 0,
-    dtype: Any = None
+    dtype: _DTypeLike = None,
 ) -> _NDArray:
   r"""Return an array from (sparse) indices or from a map {index: value}.
 
@@ -1736,7 +1743,7 @@ def grid_from_indices(
   'indices_min' and 'indices_max') and is adjusted by the 'pad' parameter.
 
   Args:
-    iterable_or_map: A sequence of indices or a mapping from indices to values.
+    iterable_or_map: Iterable of indices or a mapping from indices to values.
     background: Value assigned to the array elements not in 'iterable_or_map'.
     foreground: If 'iterable_or_map' is an iterable, the array value assigned to
       its indices.
@@ -1804,7 +1811,7 @@ def grid_from_indices(
   """
   assert isinstance(iterable_or_map, collections.abc.Iterable)
   is_map = False
-  if isinstance(iterable_or_map, collections.abc.Mapping):
+  if isinstance(iterable_or_map, collections.abc.Mapping):  # Help mypy.
     is_map = True
     mapping: Mapping[Sequence[int], Any] = iterable_or_map
 
@@ -1823,17 +1830,18 @@ def grid_from_indices(
   offset = -i_min + a_pad
   elems = [next(iter(mapping.values()))] if is_map and mapping else []
   elems += [background, foreground]
-  shape = (*shape, *np.broadcast(*elems).shape)
+  shape2 = (*shape, *np.broadcast(*elems).shape)
+  del shape
   dtype = np.array(elems[0], dtype=dtype).dtype
-  grid = np.full(shape, background, dtype=dtype)
+  grid = np.full(shape2, background, dtype=dtype)
   indices += offset
   grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
   return grid
 
 
-def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
+def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any],
                       background: Any,
-                      cmap: Mapping[Any, Tuple[numbers.Integral,
+                      cmap: Mapping[Any, tuple[numbers.Integral,
                                                numbers.Integral,
                                                numbers.Integral]],
                       pad: int | Sequence[int] = 0) -> _NDArray:
@@ -1857,7 +1865,7 @@ def image_from_yx_map(map_yx_value: Mapping[Tuple[int, int], Any],
   return image
 
 
-def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
+def fit_shape(shape: Sequence[int], num: int) -> tuple[int, ...]:
   """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
 
   Args:
@@ -1901,11 +1909,11 @@ def fit_shape(shape: Sequence[int], num: int) -> Tuple[int, ...]:
 
 def assemble_arrays(arrays: Sequence[_NDArray],
                     shape: Sequence[int],
-                    background: Any = 0,
+                    background: _ArrayLike = 0,
                     *,
                     align: str = 'center',
-                    spacing: Any = 0,
-                    round_to_even: Any = False) -> _NDArray:
+                    spacing: _ArrayLike = 0,
+                    round_to_even: _ArrayLike = False) -> _NDArray:
   """Return an output array formed as a packed grid of input arrays.
 
   Args:
@@ -1950,9 +1958,9 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   tail_dims = arrays[0].shape[len(shape):]
   if any(array.shape[len(shape):] != tail_dims for array in arrays):
     raise ValueError(f'Shapes of {arrays} do not all end in {tail_dims}')
-  align2 = np.broadcast_to(np.array(align), (num, len(shape)))
-  spacing2 = np.broadcast_to(np.array(spacing), len(shape))
-  round_to_even2 = np.broadcast_to(round_to_even, len(shape))
+  align2 = np.broadcast_to(np.asarray(align), (num, len(shape)))
+  spacing2 = np.broadcast_to(np.asarray(spacing), len(shape))
+  round_to_even2 = np.broadcast_to(np.asarray(round_to_even), len(shape))
   del align, spacing, round_to_even
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
@@ -2008,7 +2016,9 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   return output_array
 
 
-def shift(array: Any, offset: Any, constant_values: Any = 0) -> _NDArray:
+def shift(array: _ArrayLike,
+          offset: _ArrayLike,
+          constant_values: _ArrayLike = 0) -> _NDArray:
   """Return a copy of the array shifted by offset, with fill using constant.
 
   >>> array = np.arange(1, 13).reshape(3, 4)
@@ -2073,7 +2083,7 @@ class UnionFind:
   """
 
   def __init__(self) -> None:
-    self._rep: Dict[Any, Any] = {}
+    self._rep: dict[Any, Any] = {}
 
   def union(self, a: Any, b: Any) -> None:
     """Merge the equivalence class of b into that of a.
@@ -2122,7 +2132,7 @@ class UnionFind:
 
 
 def topological_sort(graph: Mapping[_T, Sequence[_T]],
-                     cycle_check: bool = False) -> List[_T]:
+                     cycle_check: bool = False) -> list[_T]:
   """Given a dag (directed acyclic graph), return a list of graph nodes such
   that for every directed edge (u, v) in the graph, u is before v in the list.
   See https://en.wikipedia.org/wiki/Topological_sorting and
@@ -2149,7 +2159,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
         recurse(dependent)
     result.append(node)
 
-  all_dependents: Set[_T] = set()
+  all_dependents: set[_T] = set()
   all_dependents.update(*graph.values())
   for node in reversed(list(graph)):  # (reversed(graph) in Python 3.8).
     if node not in all_dependents:
@@ -2168,8 +2178,8 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
 # ** Search algorithms
 
 
-def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
-                           y_desired: Any) -> Any:
+def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
+                           y_desired: float) -> int:
   """Return x such that feval(x) <= y_desired < feval(x + 1),
 
   Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
@@ -2197,21 +2207,6 @@ def discrete_binary_search(feval: Callable[[Any], Any], xl: Any, xh: Any,
 
 
 # ** General I/O
-
-
-def write_contents(path: str, data: str | bytes) -> None:
-  """Write data (either utf-8 string or bytes) to file.
-
-  >>> with tempfile.TemporaryDirectory() as dir:
-  ...   path = pathlib.Path(dir) / 'file'
-  ...   write_contents(path, b'hello')
-  ...   check_eq(path.read_bytes(), b'hello')
-  ...   write_contents(path, 'hello2')
-  ...   check_eq(path.read_text(), 'hello2')
-  """
-  bytes_data: bytes = data if isinstance(data, bytes) else data.encode()
-  with open(path, 'wb') as f:
-    f.write(bytes_data)
 
 
 def is_executable(path: _Path) -> bool:
