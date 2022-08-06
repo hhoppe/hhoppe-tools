@@ -2,7 +2,9 @@
 # -*- fill-column: 80; -*-
 """Tests for hhoppe_tools module."""
 
-from typing import Any, List
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 import hhoppe_tools as hh
@@ -81,7 +83,7 @@ def test_selective_lru_cache() -> None:
     called_args = [arg1, kw0, kw1, kw2, kw3]
     return arg1 + int(kw0) + int(kw3)
 
-  def f(*args: Any, expected: List[Any], **kwargs: Any) -> None:
+  def f(*args: Any, expected: list[Any], **kwargs: Any) -> None:
     nonlocal called_args
     called_args = []
     func1(*args, **kwargs)
