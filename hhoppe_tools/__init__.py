@@ -21,7 +21,7 @@ gpylint hhoppe_tools.py
 
 from __future__ import annotations
 __docformat__ = 'google'
-__version__ = '0.9.3'
+__version__ = '0.9.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -46,12 +46,12 @@ import re
 import stat
 import subprocess
 import sys
-import tempfile  # pylint:disable=unused-import
+import tempfile  # pylint:disable=unused-import # noqa
 import time
 import traceback
 import typing
-from typing import Any, TypeVar, Union
-import unittest.mock  # pylint: disable=unused-import
+from typing import Any, Generic, TypeVar, Union
+import unittest.mock  # pylint: disable=unused-import # noqa
 
 import numpy as np
 import numpy.typing as npt
@@ -1899,7 +1899,7 @@ def fit_shape(shape: Sequence[int], num: int) -> tuple[int, ...]:
   if sum(dim == -1 for dim in shape) > 1:
     raise ValueError(f'More than one dimension in {shape} is -1.')
   if -1 in shape:
-    slice_size = np.prod([dim for dim in shape if dim != -1])
+    slice_size = int(np.prod([dim for dim in shape if dim != -1]))
     shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim
                   for dim in shape)
   elif np.prod(shape) < num:
@@ -2054,16 +2054,14 @@ def shift(array: _ArrayLike,
 # ** Graph algorithms
 
 
-class UnionFind:
+class UnionFind(Generic[_T]):
   """Union-find is an efficient technique for tracking equivalence classes as
   pairs of elements are incrementally unified into the same class.  See
   https://en.wikipedia.org/wiki/Disjoint-set_data_structure .
   The implementation uses path compression but without weight-balancing, so the
   worst case time complexity is O(n*log(n)), but the average case is O(n).
 
-  >>> union_find = UnionFind()
-  >>> union_find.find(1)
-  1
+  >>> union_find = UnionFind[str]()
   >>> union_find.find('hello')
   'hello'
   >>> union_find.same('hello', 'hello')
@@ -2083,22 +2081,22 @@ class UnionFind:
   """
 
   def __init__(self) -> None:
-    self._rep: dict[Any, Any] = {}
+    self._rep: dict[_T, _T] = {}
 
-  def union(self, a: Any, b: Any) -> None:
+  def union(self, a: _T, b: _T) -> None:
     """Merge the equivalence class of b into that of a.
 
-    >>> union_find = UnionFind()
+    >>> union_find = UnionFind[int]()
     >>> union_find.union(1, 2)
     >>> assert union_find.same(1, 2) and not union_find.same(2, 3)
     """
     rep_a, rep_b = self.find(a), self.find(b)
     self._rep[rep_b] = rep_a
 
-  def same(self, a: Any, b: Any) -> bool:
+  def same(self, a: _T, b: _T) -> bool:
     """Return whether a and b are in the same equivalence class.
 
-    >>> union_find = UnionFind()
+    >>> union_find = UnionFind[int]()
     >>> assert not union_find.same((1, 2), (2, 3))
     >>> union_find.union((1, 2), (2, 3))
     >>> assert union_find.same((1, 2), (2, 3))
@@ -2106,10 +2104,10 @@ class UnionFind:
     result: bool = self.find(a) == self.find(b)
     return result
 
-  def find(self, a: Any) -> Any:
+  def find(self, a: _T) -> _T:
     """Return a representative for the class of a; valid until next union().
 
-    >>> union_find = UnionFind()
+    >>> union_find = UnionFind[str]()
     >>> union_find.union('a', 'b')
     >>> check_eq(union_find.find('a'), 'a')
     >>> check_eq(union_find.find('b'), 'a')

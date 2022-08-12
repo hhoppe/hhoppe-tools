@@ -31,7 +31,7 @@ def test_string_grid_string_roundtrip() -> None:
 
 
 def test_union_find() -> None:
-  union_find = hh.UnionFind()
+  union_find = hh.UnionFind[int]()
   hh.check_eq(union_find.same(12, 12), True)
   hh.check_eq(union_find.same(12, 23), False)
   hh.check_eq(union_find.same(12, 35), False)
