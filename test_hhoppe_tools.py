@@ -11,6 +11,7 @@ import hhoppe_tools as hh
 
 
 def test_string_grid_string_roundtrip() -> None:
+  """Test conversion from string to grid and back."""
   s = '..A.\nC.#.\n.AA.\n'
   g = hh.grid_from_string(s, {'.': 0, '#': 1, 'A': 11, 'C': 12}, dtype=np.uint8)
   hh.check_eq(g.dtype, np.uint8)
@@ -31,6 +32,7 @@ def test_string_grid_string_roundtrip() -> None:
 
 
 def test_union_find() -> None:
+  """Test UnionFind class."""
   union_find = hh.UnionFind[int]()
   hh.check_eq(union_find.same(12, 12), True)
   hh.check_eq(union_find.same(12, 23), False)
@@ -49,6 +51,7 @@ def test_union_find() -> None:
 
 
 def test_noop_decorator() -> None:
+  """Test the `noop_decorator`."""
   @hh.noop_decorator
   def func1(i: int) -> int:
     return i * 2

@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
 # -*- fill-column: 80; -*-
 """Library of Python tools -- Hugues Hoppe.
-# pylint: disable=line-too-long
 
 Useful commands to test and polish this file:
 
-bash -c 'f=__init__.py; true && env python3 $f; env mypy --strict "$f"; autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 --diff "$f"; pylint --indent-string="  " --disable=C0103,C0302,C0415,R0902,R0903,R0913,R0914,W0640 "$f"; true && python3 -m doctest -v "$f" | perl -ne "print if /had no tests/../passed all/" | head -n -1; true && env pytest ..; echo All ran.'
+c:/windows/sysnative/wsl -e bash -lc 'cd ..; echo flake8; flake8; echo mypy; mypy . | grep -Ev " errors? in . file|Any from function declared to return .(ndarray|Tensor)"; echo autopep8; autopep8 -j8 -d .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
-env pytest --doctest-modules ..
-env python3 -m doctest -v hhoppe_tools.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
-hhoppe_tools.py
-env mypy --strict hhoppe_tools.py
-bash -c "autopep8 -a -a -a --max-line-length 80 --indent-size 2 --ignore E265 hhoppe_tools.py >~/tmp/v && ediff hhoppe_tools.py ~/tmp/v"
-bash -c 'pylint --indent-string="  " --disable=C0103,C0302,C0415,R0201,R0902,R0903,R0913,R0914 hhoppe_tools.py'
-bash -c "pydoc3 ~/bin/hhoppe_tools.py"  # Print module help
-gpylint hhoppe_tools.py
-
-# pylint: enable=line-too-long
+env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 """
 
 from __future__ import annotations
+
 __docformat__ = 'google'
-__version__ = '0.9.4'
+__version__ = '0.9.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -55,6 +46,9 @@ import unittest.mock  # pylint: disable=unused-import # noqa
 
 import numpy as np
 import numpy.typing as npt
+
+# For np.broadcast_to(), etc.
+# mypy: allow-untyped-calls
 
 _T = TypeVar('_T')
 _F = TypeVar('_F', bound='Callable[..., Any]')
@@ -366,21 +360,21 @@ class _CellTimer:
   def __init__(self) -> None:
     import IPython
     self.elapsed_times: dict[int, float] = {}
-    self.start()
-    IPython.get_ipython().events.register('pre_run_cell', self.start)
-    IPython.get_ipython().events.register('post_run_cell', self.stop)
+    self.pre_run(None)
+    IPython.get_ipython().events.register('pre_run_cell', self.pre_run)
+    IPython.get_ipython().events.register('post_run_cell', self.post_run)
 
   def close(self) -> None:
     """Destroy the _CellTimer and its notebook callbacks."""
     import IPython
-    IPython.get_ipython().events.unregister('pre_run_cell', self.start)
-    IPython.get_ipython().events.unregister('post_run_cell', self.stop)
+    IPython.get_ipython().events.unregister('pre_run_cell', self.pre_run)
+    IPython.get_ipython().events.unregister('post_run_cell', self.post_run)
 
-  def start(self) -> None:
+  def pre_run(self, unused_info: Any) -> None:
     """Start a timer for the notebook cell execution."""
     self.start_time = time.monotonic()
 
-  def stop(self) -> None:
+  def post_run(self, unused_result: Any) -> None:
     """Start the timer for the notebook cell execution."""
     import IPython
     elapsed_time = time.monotonic() - self.start_time
@@ -867,11 +861,13 @@ def temporary_assignment(variables: dict[str, Any], name: str,
 
 
 @typing.overload  # Bare decorator.
-def noop_decorator(func: _F) -> _F: ...
+def noop_decorator(func: _F) -> _F:
+  ...
 
 
 @typing.overload  # Decorator with arguments.
-def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]: ...
+def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+  ...
 
 
 def noop_decorator(*args: Any, **kwargs: Any) -> Any:
@@ -1469,7 +1465,7 @@ class Stats:
     >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
     """
-    return self.var()**0.5
+    return self.var()**0.5  # type: ignore[no-any-return]
 
   def rms(self) -> float:
     """Return the root-mean-square.
@@ -1479,7 +1475,9 @@ class Stats:
     >>> Stats([-1, 1]).rms()
     1.0
     """
-    return 0.0 if self._size == 0 else (self._sum2 / self._size)**0.5
+    if self._size == 0:
+      return 0.0
+    return (self._sum2 / self._size)**0.5  # type: ignore[no-any-return]
 
   def __format__(self, format_spec: str = '') -> str:
     """Return a summary of the statistics (size, min, max, avg, sdv)."""
@@ -1819,12 +1817,10 @@ def grid_from_indices(
   if indices.ndim == 1:
     indices = indices[:, None]
   assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
-
-  def get_min_or_max_bound(f: Any, x: Any) -> _NDArray:
-    return f(indices, axis=0) if x is None else np.full(indices.shape[1], x)
-
-  i_min = get_min_or_max_bound(np.min, indices_min)
-  i_max = get_min_or_max_bound(np.max, indices_max)
+  i_min = (np.min(indices, axis=0) if indices_min is None else
+           np.full(indices.shape[1], indices_min))
+  i_max = (np.max(indices, axis=0) if indices_max is None else
+           np.full(indices.shape[1], indices_max))
   a_pad = np.asarray(pad)
   shape = i_max - i_min + 2 * a_pad + 1
   offset = -i_min + a_pad
