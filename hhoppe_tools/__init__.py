@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '0.9.5'
+__version__ = '0.9.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -996,12 +996,6 @@ def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
 # ** Imports and modules
 
 
-# If placing this code in a package, rename this file to __init__.py
-# as discussed in https://pcarleton.com/2016/09/06/python-init/
-# to avoid long names like package.module.function.  See the example in
-# https://github.com/python/cpython/blob/master/Lib/collections/__init__.py
-
-
 def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
   """Return a new empty module (not associated with any file).
 
@@ -1640,9 +1634,10 @@ def np_int_from_ch(a: _ArrayLike, int_from_ch: Mapping[str, int],
   >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
   array([0, 1, 2, 0, 1])
   """
-# Adapted from https://stackoverflow.com/a/49566980
+  # Adapted from https://stackoverflow.com/a/49566980
   a = np.asarray(a).view(np.int32)
-  lookup = np.zeros(a.max() + 1, dtype=dtype or np.int64)
+  max_ch = max(a.max(), max(ord(ch) for ch in int_from_ch))
+  lookup = np.zeros(max_ch + 1, dtype=dtype or np.int64)
   for ch, value in int_from_ch.items():
     lookup[ord(ch)] = value
   return lookup[a]
