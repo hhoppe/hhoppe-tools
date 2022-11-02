@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '0.9.6'
+__version__ = '1.0.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -378,9 +378,7 @@ class _CellTimer:
     """Start the timer for the notebook cell execution."""
     import IPython
     elapsed_time = time.monotonic() - self.start_time
-    input_index = IPython.get_ipython().execution_count
-    if not in_colab():
-      input_index -= 1
+    input_index = IPython.get_ipython().execution_count - 1
     self.elapsed_times[input_index] = elapsed_time
 
   def show_times(self, n: int | None = None, sort: bool = False) -> None:
