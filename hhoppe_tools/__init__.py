@@ -29,7 +29,6 @@ import io  # pylint: disable=unused-import
 import importlib.util
 import itertools
 import math
-import numbers
 import os  # pylint: disable=unused-import
 import pathlib
 import pstats
@@ -1830,9 +1829,7 @@ def grid_from_indices(
 
 def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any],
                       background: Any,
-                      cmap: Mapping[Any, tuple[numbers.Integral,
-                                               numbers.Integral,
-                                               numbers.Integral]],
+                      cmap: Mapping[Any, tuple[int, int, int]],
                       pad: int | Sequence[int] = 0) -> _NDArray:
   """Return image from mapping {yx: value} and cmap = {value: rgb}.
 
