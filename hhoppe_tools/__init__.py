@@ -423,9 +423,15 @@ def show_notebook_cell_top_times() -> None:
 # ** Timing
 
 
+class TimeAndResult(typing.NamedTuple, typing.Generic[_T]):
+  """Result of `get_time_and_result`."""
+  time: float
+  result: _T
+
+
 def get_time_and_result(func: Callable[[], _T], *,
                         max_repeat: int = 10,
-                        max_time: float = 2.0) -> tuple[float, _T]:
+                        max_time: float = 2.0) -> TimeAndResult[_T]:
   """Call the function repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
@@ -440,8 +446,8 @@ def get_time_and_result(func: Callable[[], _T], *,
       If set to zero, a single timing measurement is taken.
 
   Returns:
-    minimum_time: The smallest time (in seconds) measured across the repeated
-      calls to `func` (divided by batch size if batches are introduced).
+    time: The minimum time (in seconds) measured across the repeated calls to
+      `func` (divided by batch size if batches are introduced).
     result: The value returned by the last call to `func`.
 
   >>> elapsed, result = get_time_and_result(lambda: 11 + 22)
@@ -479,7 +485,7 @@ def get_time_and_result(func: Callable[[], _T], *,
     if gc_was_enabled:
       gc.enable()
 
-  return min_time / batch_size, typing.cast(_T, result)
+  return TimeAndResult(min_time / batch_size, typing.cast(_T, result))
 
 
 def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
