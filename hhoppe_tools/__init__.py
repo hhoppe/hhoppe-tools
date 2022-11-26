@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -423,15 +423,9 @@ def show_notebook_cell_top_times() -> None:
 # ** Timing
 
 
-class TimeAndResult(typing.NamedTuple, typing.Generic[_T]):
-  """Result of `get_time_and_result`."""
-  time: float
-  result: _T
-
-
 def get_time_and_result(func: Callable[[], _T], *,
                         max_repeat: int = 10,
-                        max_time: float = 2.0) -> TimeAndResult[_T]:
+                        max_time: float = 2.0) -> tuple[float, _T]:
   """Call the function repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
@@ -485,7 +479,7 @@ def get_time_and_result(func: Callable[[], _T], *,
     if gc_was_enabled:
       gc.enable()
 
-  return TimeAndResult(min_time / batch_size, typing.cast(_T, result))
+  return min_time / batch_size, typing.cast(_T, result)
 
 
 def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
