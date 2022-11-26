@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.0.4'
+__version__ = '1.0.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1096,6 +1096,17 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
   infos.sort(key=lambda pair: pair[1], reverse=True)
   for name, size, vartype in infos[:n]:
     print(f'{name:24} {vartype:20} {size:_}')
+
+
+# ** String functions
+
+
+def re_groups(pattern: str, string: str) -> tuple[str, ...]:
+  """Like `re.search(...).groups()` but with assertion that a match is found."""
+  match = re.search(pattern, string)
+  if not match:
+    raise ValueError(f'Did not locate pattern "{pattern}" in "{string}"')
+  return match.groups()
 
 
 # ** Mathematics
