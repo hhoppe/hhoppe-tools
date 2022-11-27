@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.0.5'
+__version__ = '1.0.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -209,7 +209,7 @@ def dump_vars(*args: Any) -> str:
   stack = traceback.extract_stack()
   this_function_name = stack[-1][2]  # i.e. initially 'dump_vars'.
   for stackframe in stack[-2::-1]:
-    (filename, unused_line_number, function_name, text) = stackframe  # Caller.
+    filename, unused_line_number, function_name, text = stackframe  # Caller.
     # https://docs.python.org/3/tutorial/errors.html:
     # "however, it will not display lines read from standard input."
     if filename == '<stdin>':
@@ -1408,7 +1408,7 @@ class Stats:
       self._min = a.min() if a.size > 0 else math.inf
       self._max = a.max() if a.size > 0 else -math.inf
     else:
-      (self._size, self._sum, self._sum2, self._min, self._max) = args
+      self._size, self._sum, self._sum2, self._min, self._max = args
 
   def sum(self) -> float:
     """Return the sum of the values.
