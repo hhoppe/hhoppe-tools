@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- fill-column: 80; -*-
-"""Library of Python tools -- Hugues Hoppe.
+"""Library of Python tools by Hugues Hoppe.
 
 Useful commands to test and polish this file:
 
-c:/windows/sysnative/wsl -e bash -lc 'cd ..; echo flake8; flake8; echo mypy; mypy . | grep -Ev " errors? in . file|Any from function declared to return .(ndarray|Tensor)"; echo autopep8; autopep8 -j8 -d .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
+c:/windows/sysnative/wsl -e bash -lc 'cd ..; echo autopep8; autopep8 -j8 -d .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
 env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 """
@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.0.6'
+__version__ = '1.0.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -863,7 +863,8 @@ def noop_decorator(func: _F) -> _F:
 
 
 @typing.overload  # Decorator with arguments.
-def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+def noop_decorator(  # type: ignore[misc]
+    *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
   ...
 
 
@@ -1102,7 +1103,27 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
 
 
 def re_groups(pattern: str, string: str) -> tuple[str, ...]:
-  """Like `re.search(...).groups()` but with assertion that a match is found."""
+  r"""Like `re.search(...).groups()` but with assertion that a match is found.
+
+  Args:
+    pattern: A regular expression.  It may include a prefix '^' or suffix '$'
+      to constrain the search location.
+    string: Text to search.
+
+  Returns:
+    A tuple of strings corresponding to the regex groups found in the pattern
+      match within `string`.
+
+  Raises:
+    ValueError if `pattern` is not found in `string`.
+
+  >>> re_groups(r'object (\d+).*loc (\w+)', 'The object 13 at loc ABC.')
+  ('13', 'ABC')
+  >>> re_groups(r'(\d+)', 'Some text.')
+  Traceback (most recent call last):
+  ...
+  ValueError: Did not locate pattern "(\d+)" in "Some text."
+  """
   match = re.search(pattern, string)
   if not match:
     raise ValueError(f'Did not locate pattern "{pattern}" in "{string}"')
@@ -1467,7 +1488,7 @@ class Stats:
     >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
     """
-    return self.var()**0.5  # type: ignore[no-any-return]
+    return self.var()**0.5
 
   def rms(self) -> float:
     """Return the root-mean-square.
@@ -1479,7 +1500,7 @@ class Stats:
     """
     if self._size == 0:
       return 0.0
-    return (self._sum2 / self._size)**0.5  # type: ignore[no-any-return]
+    return (self._sum2 / self._size)**0.5
 
   def __format__(self, format_spec: str = '') -> str:
     """Return a summary of the statistics (size, min, max, avg, sdv)."""
