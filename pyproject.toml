@@ -2,7 +2,7 @@
 name = "hhoppe-tools"
 description = "Library of Python tools by Hugues Hoppe"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {file = "LICENSE"}
 authors = [{name = "Hugues Hoppe", email="hhoppe@gmail.com"}]
 classifiers = [
@@ -52,7 +52,7 @@ ignore_missing_imports = true
 strict = true
 exclude = "(^Other|^old_setup.py)"
 warn_return_any = false  # buggy numpy
-# python_version = "3.7"
+# python_version = "3.8"
 
 [tool.pylint.main]
 disable = [
@@ -64,7 +64,7 @@ reports = false
 score = false
 recursive = true
 ignore-paths = [".ipynb_checkpoints"]
-# py-version = "3.7"
+# py-version = "3.8"
 
 [tool.pylint.basic]
 good-names-rgxs = "^[a-z][a-z0-9]?|[A-Z]([A-Z_]*[A-Z])?$"
@@ -74,4 +74,4 @@ indent-string = "  "
 expected-line-ending-format = "LF"
 
 [tool.pytest.ini_options]
-addopts = "--doctest-modules"
+addopts = "--ignore-glob '*.#*' --doctest-modules"

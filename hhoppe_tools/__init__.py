@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.0.8'
+__version__ = '1.1.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -68,7 +68,7 @@ else:
 # ** Language extensions
 
 
-def assert_value(value: _T | None) -> _T:
+def assert_value(value: _T | None, /) -> _T:
   """Return value after asserting it, as in a functional assert.
 
   >>> assert_value('word')
@@ -101,7 +101,7 @@ def assert_value(value: _T | None) -> _T:
   return value
 
 
-def assert_not_none(value: _T | None) -> _T:
+def assert_not_none(value: _T | None, /) -> _T:
   """Return value after asserting that it is not None.
 
   >>> assert_not_none('word')
@@ -131,7 +131,7 @@ def assert_not_none(value: _T | None) -> _T:
 # ** Debugging output
 
 
-def check_eq(a: Any, b: Any) -> None:
+def check_eq(a: Any, b: Any, /) -> None:
   """Assert that two values are equal or raise exception with a useful message.
 
   Args:
@@ -229,7 +229,7 @@ def dump_vars(*args: Any) -> str:
     else:
       if len(args) == 1:
         expressions = [parameter_string.strip()]
-      elif hasattr(ast, 'get_source_segment'):  # Python 3.8.
+      else:
         node = ast.parse(parameter_string)
         # print(ast.dump(node))  # ", indent=2" requires Python 3.9.
         value = getattr(node.body[0], 'value', '?')
@@ -240,8 +240,6 @@ def dump_vars(*args: Any) -> str:
           return '?' if text is None else text
 
         expressions = [get_text(element) for element in elements]
-      else:
-        expressions = [name.strip() for name in parameter_string.split(',')]
       l = []
       for (expr, value) in zip(expressions, args):
         l.append(f'{expr} = {value}' if expr[0] not in '"\'' else str(value))
@@ -269,7 +267,7 @@ def show(*args: Any) -> None:
   print(dump_vars(*args), flush=True)
 
 
-def analyze_lru_caches(variables: Mapping[str, Any]) -> None:
+def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
   """Report on usage and efficiency of memoization caches.
 
   Args:
@@ -298,7 +296,7 @@ def analyze_lru_caches(variables: Mapping[str, Any]) -> None:
           f' {hit_ratio:5.3f} hit={info.hits:13_} miss={info.misses:13_}')
 
 
-def clear_lru_caches(variables: Mapping[str, Any], *,
+def clear_lru_caches(variables: Mapping[str, Any], /, *,
                      verbose: bool = False) -> None:
   """Clear all the function memoization caches.
 
@@ -341,7 +339,7 @@ def in_colab() -> bool:
     return False
 
 
-def adjust_jupyterlab_markdown_width(width: int = 1016) -> None:
+def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
   """Set the Markdown cell width in Jupyterlab to the value used by Colab."""
   # https://stackoverflow.com/a/66278615.
   import IPython.display
@@ -423,7 +421,7 @@ def show_notebook_cell_top_times() -> None:
 # ** Timing
 
 
-def get_time_and_result(func: Callable[[], _T], *,
+def get_time_and_result(func: Callable[[], _T], /, *,
                         max_repeat: int = 10,
                         max_time: float = 2.0) -> tuple[float, _T]:
   """Call the function repeatedly to determine its minimum run time.
@@ -482,7 +480,7 @@ def get_time_and_result(func: Callable[[], _T], *,
   return min_time / batch_size, typing.cast(_T, result)
 
 
-def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
+def get_time(func: Callable[[], Any], /, **kwargs: Any) -> float:
   """Return the minimum execution time when repeatedly calling `func`.
 
   >>> elapsed = get_time(lambda: time.sleep(0.2), max_repeat=1)
@@ -491,7 +489,7 @@ def get_time(func: Callable[[], Any], **kwargs: Any) -> float:
   return get_time_and_result(func, **kwargs)[0]
 
 
-def format_float(value: float, precision: int) -> str:
+def format_float(value: float, /, precision: int) -> str:
   """Return non-scientific repr. of value with specified digits of precision.
 
   >>> format_float(1234, 3)
@@ -517,7 +515,7 @@ def format_float(value: float, precision: int) -> str:
   return text.rstrip('.')
 
 
-def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
+def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
   r"""Print the minimum execution time when repeatedly calling `func`.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
@@ -537,7 +535,7 @@ def print_time(func: Callable[[], Any], **kwargs: Any) -> None:
 # ** Profiling
 
 
-def prun(func: Callable[[], Any],
+def prun(func: Callable[[], Any], /, *,
          mode: str = 'tottime',
          top: int | None = None) -> None:
   """Profile the function call and print reformatted statistics.
@@ -586,8 +584,8 @@ def prun(func: Callable[[], Any],
   post_header = False
   for line in lines:
     if post_header:
-      tottime_str, cumtime_str, name = assert_value(re.fullmatch(
-          r'\s*\S+\s+(\S+)\s+\S+\s+(\S+)\s+\S+\s+(\S.*)', line)).groups()
+      pattern = r'\s*\S+\s+(\S+)\s+\S+\s+(\S+)\s+\S+\s+(\S.*)'
+      tottime_str, cumtime_str, name = re_groups(pattern, line)
       tottime, cumtime = float(tottime_str), float(cumtime_str)
       beautified_name = beautify_function_name(name)
       overall_time += 1e-6
@@ -599,8 +597,7 @@ def prun(func: Callable[[], Any],
         else:  # mode == 'full'
           output.append(line.replace(name, beautified_name))
     elif ' function calls ' in line:
-      overall_time = float(
-          assert_value(re.search(r' in (\S+) seconds', line)).group(1))
+      overall_time = float(re_groups(r' in (\S+) seconds', line)[0])
       output.append(f'Prun: tottime {overall_time:8.3f} overall_cumtime')
     elif line.lstrip().startswith('ncalls '):
       if mode == 'full':
@@ -644,188 +641,12 @@ class OrderedEnum(enum.Enum):
     return typing.cast(bool, self.value < other.value)
 
 
-# ** Operations on iterables
-
-
-def repeat_each(iterable: Iterable[_T], n: int) -> Iterator[_T]:
-  """Repeat each element of iterable 'n' times.
-
-  >>> list(repeat_each(list('abc'), 2))
-  ['a', 'a', 'b', 'b', 'c', 'c']
-
-  >>> ''.join(itertools.islice(repeat_each(itertools.cycle('abcd'), 4), 30))
-  'aaaabbbbccccddddaaaabbbbccccdd'
-  """
-  # https://stackoverflow.com/a/65071833
-  return itertools.chain.from_iterable(zip(*itertools.tee(iterable, n)))
-
-
-def only(iterable: Iterable[_T]) -> _T:
-  """Return the first element and asserts that there are no more.
-
-  >>> only(range(1))
-  0
-
-  >>> only(range(2))
-  Traceback (most recent call last):
-  ...
-  ValueError: [0, 1, ...] has more than one element
-
-  >>> only(range(0))
-  Traceback (most recent call last):
-  ...
-  StopIteration
-  """
-  # Or use: return (lambda x: x)(*iterable)
-  iterator = iter(iterable)
-  first = next(iterator)
-  missing = object()
-  second = next(iterator, missing)
-  if second != missing:
-    raise ValueError(f'[{first}, {second}, ...] has more than one element')
-  return first
-
-
-def grouped(iterable: Iterable[_T],
-            n: int,
-            fillvalue: _T | None = None,
-            ) -> Iterator[tuple[_T | None, ...]]:
-  """Return elements collected into fixed-length chunks.
-
-  >>> list(grouped('ABCDEFG', 3, 'x'))
-  [('A', 'B', 'C'), ('D', 'E', 'F'), ('G', 'x', 'x')]
-
-  >>> list(grouped(range(5), 3))
-  [(0, 1, 2), (3, 4, None)]
-
-  >>> list(grouped(range(5), 3, fillvalue=9))
-  [(0, 1, 2), (3, 4, 9)]
-
-  >>> list(grouped(range(6), 3))
-  [(0, 1, 2), (3, 4, 5)]
-
-  >>> list(grouped([], 2))
-  []
-  """
-  # From grouper() in https://docs.python.org/3/library/itertools.html.
-  iters = [iter(iterable)] * n
-  return itertools.zip_longest(*iters, fillvalue=fillvalue)
-
-
-def chunked(iterable: Iterable[_T],
-            n: int | None = None,
-            ) -> Iterator[tuple[_T, ...]]:
-  """Return elements collected as tuples of length at most 'n' if not None.
-
-  >>> list(chunked('ABCDEFG', 3))
-  [('A', 'B', 'C'), ('D', 'E', 'F'), ('G',)]
-
-  >>> list(chunked(range(5), 3))
-  [(0, 1, 2), (3, 4)]
-
-  >>> list(chunked(range(5)))
-  [(0, 1, 2, 3, 4)]
-
-  >>> list(chunked([]))
-  []
-  """
-
-  def take(n: int, iterable: Iterable[_T]) -> tuple[_T, ...]:
-    return tuple(itertools.islice(iterable, n))
-
-  return iter(functools.partial(take, n, iter(iterable)), ())
-
-
-def sliding_window(iterable: Iterable[_T], n: int) -> Iterator[tuple[_T, ...]]:
-  """Return overlapping tuples of length `n` from `iterable`.
-
-  >>> list(sliding_window('ABCDEF', 4))
-  [('A', 'B', 'C', 'D'), ('B', 'C', 'D', 'E'), ('C', 'D', 'E', 'F')]
-
-  >>> list(sliding_window('ABCDE', 1))
-  [('A',), ('B',), ('C',), ('D',), ('E',)]
-
-  >>> list(sliding_window('ABCDE', 8))
-  []
-  >>> list(sliding_window('A', 2))
-  []
-  >>> list(sliding_window('', 1))
-  []
-  """
-  # From https://docs.python.org/3/library/itertools.html.
-  it = iter(iterable)
-  window = collections.deque(itertools.islice(it, n), maxlen=n)
-  if len(window) == n:
-    yield tuple(window)
-  for x in it:
-    window.append(x)
-    yield tuple(window)
-
-
-def powerset(iterable: Iterable[_T]) -> Iterator[tuple[_T, ...]]:
-  """Return all subsets of iterable.
-
-  >>> list(powerset([1, 2, 3]))
-  [(), (1,), (2,), (3,), (1, 2), (1, 3), (2, 3), (1, 2, 3)]
-
-  >>> list(powerset([]))
-  [()]
-  """
-  # From https://docs.python.org/3/library/itertools.html.
-  s = list(iterable)
-  return itertools.chain.from_iterable(
-      itertools.combinations(s, r) for r in range(len(s) + 1))
-
-
-def unique_permutations(elements: Sequence[_T]) -> Iterator[tuple[_T, ...]]:
-  """Yields unique permutations; see https://stackoverflow.com/a/30558049 .
-
-  >>> list(unique_permutations([1, 2, 1]))
-  [(1, 1, 2), (1, 2, 1), (2, 1, 1)]
-  """
-  if len(elements) == 1:
-    yield (elements[0],)
-  else:
-    unique_elements = set(elements)
-    for first_element in unique_elements:
-      remaining_elements = list(elements)
-      remaining_elements.remove(first_element)
-      for sub_permutation in unique_permutations(remaining_elements):
-        yield (first_element, *sub_permutation)
-
-
-def peek_first(iterator: Iterable[_T]) -> tuple[_T, Iterable[_T]]:
-  """Given an iterator, return first element and re-initialized iterator.
-
-  Example:
-    first_image, images = peek_first(images)
-
-  Args:
-    iterator: An input iterator or iterable.
-
-  Returns:
-    A tuple (first_element, iterator_reinitialized) containing:
-      first_element: The first element of the input.
-      iterator_reinitialized: A clone of the original iterator/iterable.
-
-  >>> value, iter = peek_first(range(5))
-  >>> value
-  0
-  >>> list(iter)
-  [0, 1, 2, 3, 4]
-  """
-  # Inspired from https://stackoverflow.com/a/12059829
-  peeker, iterator_reinitialized = itertools.tee(iterator)
-  first = next(peeker)
-  return first, iterator_reinitialized
-
-
 # ** Temporary variable assignment
 
 
 @contextlib.contextmanager
 def temporary_assignment(variables: dict[str, Any], name: str,
-                         value: Any) -> Iterator[None]:
+                         value: Any, /) -> Iterator[None]:
   """Temporarily assign `value` to the variable named `name` in `variables`.
 
   Args:
@@ -858,7 +679,7 @@ def temporary_assignment(variables: dict[str, Any], name: str,
 
 
 @typing.overload  # Bare decorator.
-def noop_decorator(func: _F) -> _F:
+def noop_decorator(func: _F, /) -> _F:
   ...
 
 
@@ -891,7 +712,7 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Any:
   return func
 
 
-def terse_str(cls: type) -> type:
+def terse_str(cls: type, /) -> type:
   """Decorator for a dataclasses.dataclass, which defines a custom str().
 
   >>> @terse_str
@@ -994,7 +815,7 @@ def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
 # ** Imports and modules
 
 
-def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
+def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
   """Return a new empty module (not associated with any file).
 
   >>> def some_function(*args, **kwargs): return 'success'
@@ -1034,7 +855,7 @@ def create_module(module_name: str, elements: Iterable[Any] = ()) -> Any:
 
 
 @contextlib.contextmanager
-def timing(description: str = 'Timing') -> Iterator[None]:
+def timing(description: str = 'Timing', /) -> Iterator[None]:
   """Context that reports elapsed time.
 
   Example:
@@ -1057,7 +878,7 @@ def timing(description: str = 'Timing') -> Iterator[None]:
   print(f'{description}: {elapsed_time:.6f}')
 
 
-def typename(o: Any) -> str:
+def typename(o: Any, /) -> str:
   """Return the full name (including module) of the type of o.
 
   >>> typename(5)
@@ -1075,7 +896,7 @@ def typename(o: Any) -> str:
   return name if module in (None, 'builtins') else f'{module}.{name}'
 
 
-def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
+def show_biggest_vars(variables: Mapping[str, Any], /, n: int = 10) -> None:
   """Print the variables with the largest memory allocation (in bytes).
 
   Usage:
@@ -1094,7 +915,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
   var = variables
   infos = [(name, sys.getsizeof(value), typename(value))
            for name, value in var.items()]
-  infos.sort(key=lambda pair: pair[1], reverse=True)
+  infos.sort(key=lambda t: t[1], reverse=True)
   for name, size, vartype in infos[:n]:
     print(f'{name:24} {vartype:20} {size:_}')
 
@@ -1102,7 +923,7 @@ def show_biggest_vars(variables: Mapping[str, Any], n: int = 10) -> None:
 # ** String functions
 
 
-def re_groups(pattern: str, string: str) -> tuple[str, ...]:
+def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
   r"""Like `re.search(...).groups()` but with assertion that a match is found.
 
   Args:
@@ -1133,7 +954,7 @@ def re_groups(pattern: str, string: str) -> tuple[str, ...]:
 # ** Mathematics
 
 
-def as_float(a: _ArrayLike) -> _NDArray:
+def as_float(a: _ArrayLike, /) -> _NDArray:
   """Convert non-floating-point array to floating-point type.
 
   Args:
@@ -1169,7 +990,7 @@ def as_float(a: _ArrayLike) -> _NDArray:
   return a.astype(dtype)
 
 
-def normalize(a: _ArrayLike, axis: int | None = None) -> _NDArray:
+def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   """Return array 'a' scaled such that its elements have unit 2-norm.
 
   Args:
@@ -1204,7 +1025,7 @@ def normalize(a: _ArrayLike, axis: int | None = None) -> _NDArray:
     return a / norm
 
 
-def rms(a: _ArrayLike, axis: int | None = None) -> _NDArray:
+def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   """Return the root mean square of the array values.
 
   >>> rms([3.0])
@@ -1225,7 +1046,7 @@ def rms(a: _ArrayLike, axis: int | None = None) -> _NDArray:
   return np.sqrt(np.mean(np.square(as_float(a)), axis, dtype=np.float64))
 
 
-def lenient_subtract(a: _ArrayLike, b: _ArrayLike) -> _NDArray:
+def lenient_subtract(a: _ArrayLike, b: _ArrayLike, /) -> _NDArray:
   """Return a - b, but returns 0 where a and b are the same signed infinity.
 
   >>> inf = math.inf
@@ -1240,7 +1061,7 @@ def lenient_subtract(a: _ArrayLike, b: _ArrayLike) -> _NDArray:
   return np.subtract(a, b, out=np.zeros_like(a), where=~same_infinity)
 
 
-def print_array(a: _ArrayLike, **kwargs: Any) -> None:
+def print_array(a: _ArrayLike, /, **kwargs: Any) -> None:
   """Print the array.
 
   >>> print_array(np.arange(6).reshape(2, 3), file=sys.stdout)
@@ -1251,7 +1072,7 @@ def print_array(a: _ArrayLike, **kwargs: Any) -> None:
   print_err(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
 
 
-def prime_factors(n: int) -> list[int]:
+def prime_factors(n: int, /) -> list[int]:
   """Return an ascending list of the (greather-than-one) prime factors of n.
 
   >>> prime_factors(1)
@@ -1278,49 +1099,7 @@ def prime_factors(n: int) -> list[int]:
   return factors
 
 
-def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
-  """Find the greatest common divisor using the extended Euclidean algorithm.
-
-  Returns:
-    A tuple (gcd, x, y) with the property that a * x + b * y = gcd.
-
-  >>> extended_gcd(29, 71)
-  (1, -22, 9)
-  >>> (29 * -22) % 71
-  1
-  """
-  prev_x, x = 1, 0
-  prev_y, y = 0, 1
-  while b:
-    q = a // b
-    x, prev_x = prev_x - q * x, x
-    y, prev_y = prev_y - q * y, y
-    a, b = b, a % b
-  x, y = prev_x, prev_y
-  return a, x, y
-
-
-def modular_inverse(a: int, b: int) -> int:
-  """Return the multiplicative inverse of 'a' with respect to the modulus 'b'.
-
-  With the extended Euclidean algorithm, for the case that a and b are coprime,
-  i.e. gcd(a, b) = 1, applying "modulo b" to both sides of a * x + b * y = 1
-  results in (a * x) % b = 1, and hence 'x' is a modular multiplicative inverse
-  of 'a' with respect to the modulus 'b'.
-  See https://en.wikipedia.org/wiki/Modular_multiplicative_inverse
-
-  >>> modular_inverse(29, 71)
-  49
-  >>> (29 * 49) % 71
-  1
-  """
-  # Note: This becomes available as "pow(a, -1, mod=b)" in Python 3.8.
-  gcd, x, unused_y = extended_gcd(a, b)
-  check_eq(gcd, 1)
-  return x % b
-
-
-def diagnostic(a: _ArrayLike) -> str:
+def diagnostic(a: _ArrayLike, /) -> str:
   """Return a diagnostic string summarizing the values in 'a' for debugging.
 
   Args:
@@ -1340,7 +1119,7 @@ def diagnostic(a: _ArrayLike) -> str:
   if dtype == bool:
     a = a.astype(np.uint8)
   finite = a[np.isfinite(a)]
-  return (f'shape={a.shape} dtype={dtype} size={a.size}'
+  return (f'shape={a.shape} {dtype=!s} size={a.size}'
           f' nan={np.isnan(a).sum()}'
           f' posinf={np.isposinf(a).sum()}'
           f' neginf={np.isneginf(a).sum()}'
@@ -1534,8 +1313,9 @@ class Stats:
   def __eq__(self, other: object) -> bool:
     if not isinstance(other, Stats):
       return NotImplemented
-    return ((self._size, self._sum, self._sum2, self._min, self._max) ==
-            (other._size, other._sum, other._sum2, other._min, other._max))
+    return (self._size == other._size and self._sum == other._sum and
+            self._sum2 == other._sum2 and self._min == other._min and
+            self._max == other._max)
 
   def __add__(self, other: Stats) -> Stats:
     """Return combined statistics.
@@ -1560,7 +1340,7 @@ class Stats:
 # ** Numpy operations
 
 
-def array_always(a: _ArrayLike | Iterable[_ArrayLike]) -> _NDArray:
+def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
   """Return a numpy array even if a is an iterator of subarrays.
 
   >>> array_always(np.array([[1, 2], [3, 4]]))
@@ -1580,7 +1360,7 @@ def array_always(a: _ArrayLike | Iterable[_ArrayLike]) -> _NDArray:
   return np.asarray(a)
 
 
-def bounding_slices(a: _ArrayLike) -> tuple[slice, ...]:
+def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   """Return the slices that bound the nonzero elements of array.
 
   >>> bounding_slices(())
@@ -1613,7 +1393,7 @@ def bounding_slices(a: _ArrayLike) -> tuple[slice, ...]:
   slices = []
   for dim in range(a.ndim):
     line = a.any(axis=tuple(i for i in range(a.ndim) if i != dim))
-    indices = line.nonzero()[0]
+    indices, = line.nonzero()
     if indices.size:
       vmin, vmax = indices[[0, -1]]
       slices.append(slice(vmin, vmax + 1))
@@ -1623,7 +1403,7 @@ def bounding_slices(a: _ArrayLike) -> tuple[slice, ...]:
 
 
 def broadcast_block(a: _NDArray,
-                    block_shape: int | tuple[int, ...]) -> _NDArray:
+                    block_shape: int | tuple[int, ...], /) -> _NDArray:
   """Return an array view where each element of 'a' is repeated as a block.
 
   Args:
@@ -1656,7 +1436,8 @@ def broadcast_block(a: _NDArray,
   return np.broadcast_to(a.reshape(shape1), shape2).reshape(final_shape)
 
 
-def np_int_from_ch(a: _ArrayLike, int_from_ch: Mapping[str, int],
+def np_int_from_ch(a: _ArrayLike, /,
+                   int_from_ch: Mapping[str, int],
                    dtype: _DTypeLike = None) -> _NDArray:
   """Return array of integers by mapping from array of characters.
 
@@ -1672,7 +1453,7 @@ def np_int_from_ch(a: _ArrayLike, int_from_ch: Mapping[str, int],
   return lookup[a]
 
 
-def grid_from_string(string: str,
+def grid_from_string(string: str, /,
                      int_from_ch: Mapping[str, int] | None = None,
                      dtype: _DTypeLike = None) -> _NDArray:
   r"""Return a 2D array created from a multiline string.
@@ -1700,8 +1481,8 @@ def grid_from_string(string: str,
   (array([[0, 0, 2],
          [2, 0, 1]], dtype=uint8), 6)
   """
-  # grid = np.array(list(map(list, string.strip('\n').split('\n'))))  # Slow.
-  lines = string.strip('\n').splitlines()
+  # grid = np.array(list(map(list, string.splitlines())))  # Slow.
+  lines = string.splitlines()
   height, width = len(lines), len(lines[0])
   grid = np.empty((height, width), dtype='U1')
   dtype_for_row = f'U{width}'
@@ -1715,7 +1496,7 @@ def grid_from_string(string: str,
   return grid
 
 
-def string_from_grid(grid: _ArrayLike,
+def string_from_grid(grid: _ArrayLike, /,
                      ch_from_int: Mapping[int, str] | None = None) -> str:
   r"""Return a multiline string created from a 2D array.
 
@@ -1750,6 +1531,7 @@ def string_from_grid(grid: _ArrayLike,
 
 def grid_from_indices(
     iterable_or_map: Iterable[Sequence[int]] | Mapping[Sequence[int], Any],
+    /, *,
     background: Any = 0,
     foreground: Any = 1,
     indices_min: int | Sequence[int] | None = None,
@@ -1859,8 +1641,8 @@ def grid_from_indices(
   return grid
 
 
-def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any],
-                      background: Any,
+def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
+                      background: Any, *,
                       cmap: Mapping[Any, tuple[int, int, int]],
                       pad: int | Sequence[int] = 0) -> _NDArray:
   """Return image from mapping {yx: value} and cmap = {value: rgb}.
@@ -1877,25 +1659,24 @@ def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any],
           [  3, 200,   4]]], dtype=uint8)
   """
   array = grid_from_indices(map_yx_value, background=background, pad=pad)
-  image = np.array([
-      cmap[e] for e in array.flat  # pylint: disable=not-an-iterable
-  ], dtype=np.uint8).reshape(*array.shape, 3)
+  image = np.array([cmap[e] for e in array.flat],
+                   dtype=np.uint8).reshape(*array.shape, 3)
   return image
 
 
-def fit_shape(shape: Sequence[int], num: int) -> tuple[int, ...]:
+def fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
   """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
 
   Args:
     shape: Input dimensions.  These must be positive, except that one dimension
       may be -1 to indicate that it should be computed.  If all dimensions are
-      positive, these must satisfy np.prod(shape) >= num.
+      positive, these must satisfy math.prod(shape) >= num.
     num: Number of elements to fit into the output shape.
 
   Returns:
     The original 'shape' if all its dimensions are positive.  Otherwise, a
     new_shape where the unique dimension with value -1 is replaced by the
-    smallest number such that np.prod(new_shape) >= num.
+    smallest number such that math.prod(new_shape) >= num.
 
   >>> fit_shape((3, 4), 10)
   (3, 4)
@@ -1917,18 +1698,18 @@ def fit_shape(shape: Sequence[int], num: int) -> tuple[int, ...]:
   if sum(dim == -1 for dim in shape) > 1:
     raise ValueError(f'More than one dimension in {shape} is -1.')
   if -1 in shape:
-    slice_size = int(np.prod([dim for dim in shape if dim != -1]))
+    slice_size = math.prod(dim for dim in shape if dim != -1)
     shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim
                   for dim in shape)
-  elif np.prod(shape) < num:
+  elif math.prod(shape) < num:
     raise ValueError(f'{shape} is insufficiently large for {num} elements.')
   return shape
 
 
 def assemble_arrays(arrays: Sequence[_NDArray],
                     shape: Sequence[int],
-                    background: _ArrayLike = 0,
                     *,
+                    background: _ArrayLike = 0,
                     align: str = 'center',
                     spacing: _ArrayLike = 0,
                     round_to_even: _ArrayLike = False) -> _NDArray:
@@ -1983,7 +1764,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
   head_dims = np.array([list(array.shape[:len(shape)]) for array in arrays] +
-                       [[0] * len(shape)] * (np.prod(shape) - num)).reshape(
+                       [[0] * len(shape)] * (math.prod(shape) - num)).reshape(
                            *shape, len(shape))
 
   # For each axis, find the length and position of each slice of input arrays.
@@ -2035,7 +1816,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
 
 def shift(array: _ArrayLike,
-          offset: _ArrayLike,
+          offset: _ArrayLike, /,
           constant_values: _ArrayLike = 0) -> _NDArray:
   """Return a copy of the array shifted by offset, with fill using constant.
 
@@ -2101,7 +1882,7 @@ class UnionFind(Generic[_T]):
   def __init__(self) -> None:
     self._rep: dict[_T, _T] = {}
 
-  def union(self, a: _T, b: _T) -> None:
+  def union(self, a: _T, b: _T, /) -> None:
     """Merge the equivalence class of b into that of a.
 
     >>> union_find = UnionFind[int]()
@@ -2111,7 +1892,7 @@ class UnionFind(Generic[_T]):
     rep_a, rep_b = self.find(a), self.find(b)
     self._rep[rep_b] = rep_a
 
-  def same(self, a: _T, b: _T) -> bool:
+  def same(self, a: _T, b: _T, /) -> bool:
     """Return whether a and b are in the same equivalence class.
 
     >>> union_find = UnionFind[int]()
@@ -2122,7 +1903,7 @@ class UnionFind(Generic[_T]):
     result: bool = self.find(a) == self.find(b)
     return result
 
-  def find(self, a: _T) -> _T:
+  def find(self, a: _T, /) -> _T:
     """Return a representative for the class of a; valid until next union().
 
     >>> union_find = UnionFind[str]()
@@ -2147,7 +1928,7 @@ class UnionFind(Generic[_T]):
     return a
 
 
-def topological_sort(graph: Mapping[_T, Sequence[_T]],
+def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *,
                      cycle_check: bool = False) -> list[_T]:
   """Given a dag (directed acyclic graph), return a list of graph nodes such
   that for every directed edge (u, v) in the graph, u is before v in the list.
@@ -2161,7 +1942,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
   >>> topological_sort({2: [3], 3: [4, 5], 1: [2], 4: [5], 5: []})
   [1, 2, 3, 4, 5]
   """
-  if sys.version_info > (3, 9):
+  if sys.version_info >= (3, 9):
     import graphlib  # pylint: disable=import-error
     return list(graphlib.TopologicalSorter(graph).static_order())[::-1]
 
@@ -2177,7 +1958,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
 
   all_dependents: set[_T] = set()
   all_dependents.update(*graph.values())
-  for node in reversed(list(graph)):  # (reversed(graph) in Python 3.8).
+  for node in reversed(graph):
     if node not in all_dependents:
       recurse(node)
 
@@ -2195,7 +1976,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]],
 
 
 def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
-                           y_desired: float) -> int:
+                           y_desired: float, /) -> int:
   """Return x such that feval(x) <= y_desired < feval(x + 1),
 
   Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
@@ -2225,7 +2006,7 @@ def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
 # ** General I/O
 
 
-def is_executable(path: _Path) -> bool:
+def is_executable(path: _Path, /) -> bool:
   """Check if a file is executable.
 
   >>> with tempfile.TemporaryDirectory() as dir:
@@ -2243,7 +2024,7 @@ def is_executable(path: _Path) -> bool:
 # ** OS commands
 
 
-def run(args: str | Sequence[str]) -> None:
+def run(args: str | Sequence[str], /) -> None:
   """Execute command, printing output from stdout and stderr.
 
   Args:
