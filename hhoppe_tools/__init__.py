@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -40,7 +40,7 @@ import tempfile  # pylint:disable=unused-import # noqa
 import time
 import traceback
 import typing
-from typing import Any, Generic, TypeVar, Union
+from typing import Any, Generic, Literal, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
 
 import numpy as np
@@ -536,7 +536,7 @@ def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
 
 
 def prun(func: Callable[[], Any], /, *,
-         mode: str = 'tottime',
+         mode: Literal['original', 'full', 'tottime'] = 'tottime',
          top: int | None = None) -> None:
   """Profile the function call and print reformatted statistics.
 
@@ -968,16 +968,16 @@ def as_float(a: _ArrayLike, /) -> _NDArray:
   >>> as_float(np.array([1.0, 2.0]))
   array([1., 2.])
 
-  >>> as_float(np.array([1.0, 2.0], dtype=np.float32))
+  >>> as_float(np.array([1.0, 2.0], np.float32))
   array([1., 2.], dtype=float32)
 
-  >>> as_float(np.array([1.0, 2.0], dtype='float64'))
+  >>> as_float(np.array([1.0, 2.0], 'float64'))
   array([1., 2.])
 
-  >>> as_float(np.array([1, 2], dtype=np.uint8))
+  >>> as_float(np.array([1, 2], np.uint8))
   array([1., 2.], dtype=float32)
 
-  >>> as_float(np.array([1, 2], dtype=np.uint16))
+  >>> as_float(np.array([1, 2], np.uint16))
   array([1., 2.], dtype=float32)
 
   >>> as_float(np.array([1, 2]))
@@ -1043,7 +1043,7 @@ def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   >>> rms([[-1.0, 1.0], [0.0, -2.0]], axis=-1)
   array([1.        , 1.41421356])
   """
-  return np.sqrt(np.mean(np.square(as_float(a)), axis, dtype=np.float64))
+  return np.sqrt(np.mean(np.square(as_float(a)), axis, np.float64))
 
 
 def lenient_subtract(a: _ArrayLike, b: _ArrayLike, /) -> _NDArray:
@@ -1424,7 +1424,7 @@ def broadcast_block(a: _NDArray,
   >>> result = broadcast_block(a, (2, 3))
   >>> result.shape
   (4, 9)
-  >>> np.all(result == np.kron(a, np.ones((2, 3), dtype=a.dtype)))
+  >>> np.all(result == np.kron(a, np.ones((2, 3), a.dtype)))
   True
   """
   block_shape2 = np.broadcast_to(np.asarray(block_shape), (a.ndim,))
@@ -1447,7 +1447,7 @@ def np_int_from_ch(a: _ArrayLike, /,
   # Adapted from https://stackoverflow.com/a/49566980
   a = np.asarray(a).view(np.int32)
   max_ch = max(a.max(), max(ord(ch) for ch in int_from_ch))
-  lookup = np.zeros(max_ch + 1, dtype=dtype or np.int64)
+  lookup = np.zeros(max_ch + 1, dtype or np.int64)
   for ch, value in int_from_ch.items():
     lookup[ord(ch)] = value
   return lookup[a]
@@ -1476,7 +1476,7 @@ def grid_from_string(string: str, /,
   (array([[0, 0, 2],
          [2, 0, 1]]), 48)
 
-  >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2}, dtype=np.uint8)
+  >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2}, np.uint8)
   >>> g, g.nbytes
   (array([[0, 0, 2],
          [2, 0, 1]], dtype=uint8), 6)
@@ -1484,7 +1484,7 @@ def grid_from_string(string: str, /,
   # grid = np.array(list(map(list, string.splitlines())))  # Slow.
   lines = string.splitlines()
   height, width = len(lines), len(lines[0])
-  grid = np.empty((height, width), dtype='U1')
+  grid = np.empty((height, width), 'U1')
   dtype_for_row = f'U{width}'
   for i, line in enumerate(lines):
     grid[i].view(dtype_for_row)[0] = line
@@ -1492,7 +1492,7 @@ def grid_from_string(string: str, /,
   if int_from_ch is None:
     assert dtype is None
   else:
-    grid = np_int_from_ch(grid, int_from_ch, dtype=dtype)
+    grid = np_int_from_ch(grid, int_from_ch, dtype)
   return grid
 
 
@@ -1634,8 +1634,8 @@ def grid_from_indices(
   elems += [background, foreground]
   shape2 = (*shape, *np.broadcast(*elems).shape)
   del shape
-  dtype = np.array(elems[0], dtype=dtype).dtype
-  grid = np.full(shape2, background, dtype=dtype)
+  dtype = np.array(elems[0], dtype).dtype
+  grid = np.full(shape2, background, dtype)
   indices += offset
   grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
   return grid
@@ -1659,8 +1659,8 @@ def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
           [  3, 200,   4]]], dtype=uint8)
   """
   array = grid_from_indices(map_yx_value, background=background, pad=pad)
-  image = np.array([cmap[e] for e in array.flat],
-                   dtype=np.uint8).reshape(*array.shape, 3)
+  image = np.array(
+      [cmap[e] for e in array.flat], np.uint8).reshape(*array.shape, 3)
   return image
 
 
@@ -1790,7 +1790,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
   # Initialize the output array.
   output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
-  output_array = np.full(output_shape, background, dtype=arrays[0].dtype)
+  output_array = np.full(output_shape, background, arrays[0].dtype)
 
   def offset(length: int, size: int, align: str) -> int:
     """Return an offset to align element of given size within cell of length."""
