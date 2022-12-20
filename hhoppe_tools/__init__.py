@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.1'
+__version__ = '1.1.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -855,7 +855,8 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
 
 
 @contextlib.contextmanager
-def timing(description: str = 'Timing', /) -> Iterator[None]:
+def timing(description: str = 'Timing', /, *,
+           enabled: bool = True) -> Iterator[None]:
   """Context that reports elapsed time.
 
   Example:
@@ -872,10 +873,13 @@ def timing(description: str = 'Timing', /) -> Iterator[None]:
   ...   _ = [i for i in range(10_000)]  # doctest:+ELLIPSIS
   List comprehension example: 0.00...
   """
-  start = time.monotonic()
-  yield
-  elapsed_time = time.monotonic() - start
-  print(f'{description}: {elapsed_time:.6f}')
+  if enabled:
+    start = time.monotonic()
+    yield
+    elapsed_time = time.monotonic() - start
+    print(f'{description}: {elapsed_time:.6f}')
+  else:
+    yield
 
 
 def typename(o: Any, /) -> str:
