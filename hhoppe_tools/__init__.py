@@ -1133,6 +1133,11 @@ def diagnostic(a: _ArrayLike, /) -> str:
 
 # ** Statistics
 
+# Note that using dataclasses.dataclass(frozen=True) incurs a performance
+# penalty # because the initialization must use object.__setattr__() to bypass
+# the # disabled __set_attr__() member function.
+# Instead, I use an ordinary class with protected class fields.
+
 
 class Stats:
   r"""Statistics computed from numbers in an iterable.
