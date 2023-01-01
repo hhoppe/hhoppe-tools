@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.2'
+__version__ = '1.1.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -339,13 +339,18 @@ def in_colab() -> bool:
     return False
 
 
+def display_html(text: str, /) -> None:
+  """In a Jupyter notebook, display the HTML `text`."""
+  import IPython.display
+  IPython.display.display(IPython.display.HTML(text))
+  
+
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
   """Set the Markdown cell width in Jupyterlab to the value used by Colab."""
   # https://stackoverflow.com/a/66278615.
-  import IPython.display
   style = f'{{max-width: {width}px!important;}}'
   text = f'<style>.jp-Cell.jp-MarkdownCell {style}</style>'
-  IPython.display.display(IPython.display.HTML(text))
+  display_html(text)
 
 
 class _CellTimer:
@@ -1068,12 +1073,12 @@ def lenient_subtract(a: _ArrayLike, b: _ArrayLike, /) -> _NDArray:
 def print_array(a: _ArrayLike, /, **kwargs: Any) -> None:
   """Print the array.
 
-  >>> print_array(np.arange(6).reshape(2, 3), file=sys.stdout)
+  >>> print_array(np.arange(6).reshape(2, 3))
   array([[0, 1, 2],
          [3, 4, 5]]) shape=(2, 3) dtype=int64
   """
   x = np.asarray(a)
-  print_err(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
+  print(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
 
 
 def prime_factors(n: int, /) -> list[int]:
