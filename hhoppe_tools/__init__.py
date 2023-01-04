@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- fill-column: 80; -*-
+# -*- fill-column: 100; -*-
 """Library of Python tools by Hugues Hoppe.
 
 Useful commands to test and polish this file:
@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.3'
+__version__ = '1.1.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -57,12 +57,7 @@ _UNDEFINED = object()
 _NDArray = npt.NDArray[Any]
 _DTypeLike = npt.DTypeLike
 _ArrayLike = npt.ArrayLike
-
-# https://github.com/python/mypy/issues/5667
-if typing.TYPE_CHECKING:
-  _Path = Union[str, 'os.PathLike[str]']
-else:
-  _Path = Union[str, os.PathLike]
+_Path = Union[str, os.PathLike]
 
 
 # ** Language extensions
@@ -167,13 +162,11 @@ def print_err(*args: str, **kwargs: Any) -> None:
 def dump_vars(*args: Any) -> str:
   """Return a string showing the values of each expression.
 
-  Specifically, convert each expression (contributed by the caller to the
-  variable-parameter list *args) into a substring f'expression = {expression}'
-  and join these substrings separated by ', '.
+  Specifically, convert each expression (contributed by the caller to the variable-parameter list
+  *args) into a substring f'expression = {expression}' and join these substrings separated by ', '.
 
-  If the caller itself provided a variable-parameter list (*args),
-  the search continues in its callers.  The approach examines a stack trace,
-  so it is fragile and non-portable.
+  If the caller itself provided a variable-parameter list (*args), the search continues in its
+  callers.  The approach examines a stack trace, so it is fragile and non-portable.
 
   Args:
     *args: Expressions to show.
@@ -296,8 +289,7 @@ def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
           f' {hit_ratio:5.3f} hit={info.hits:13_} miss={info.misses:13_}')
 
 
-def clear_lru_caches(variables: Mapping[str, Any], /, *,
-                     verbose: bool = False) -> None:
+def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) -> None:
   """Clear all the function memoization caches.
 
   Args:
@@ -315,12 +307,10 @@ def clear_lru_caches(variables: Mapping[str, Any], /, *,
   >>> check_eq(func.cache_info().hits, 0)
   """
   for name, value in variables.items():
-    try:
+    with contextlib.suppress(AttributeError):
       value.cache_clear()
       if verbose:
         print(f'Cleared lru_cache for {name}().')
-    except AttributeError:
-      pass
 
 
 # ** Jupyter/IPython notebook functionality
@@ -343,7 +333,7 @@ def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
   IPython.display.display(IPython.display.HTML(text))
-  
+
 
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
   """Set the Markdown cell width in Jupyterlab to the value used by Colab."""
@@ -427,8 +417,7 @@ def show_notebook_cell_top_times() -> None:
 
 
 def get_time_and_result(func: Callable[[], _T], /, *,
-                        max_repeat: int = 10,
-                        max_time: float = 2.0) -> tuple[float, _T]:
+                        max_repeat: int = 10, max_time: float = 2.0) -> tuple[float, _T]:
   """Call the function repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
@@ -495,7 +484,7 @@ def get_time(func: Callable[[], Any], /, **kwargs: Any) -> float:
 
 
 def format_float(value: float, /, precision: int) -> str:
-  """Return non-scientific repr. of value with specified digits of precision.
+  """Return the non-scientific representation of value with specified digits of precision.
 
   >>> format_float(1234, 3)
   '1230'
@@ -540,8 +529,7 @@ def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
 # ** Profiling
 
 
-def prun(func: Callable[[], Any], /, *,
-         mode: Literal['original', 'full', 'tottime'] = 'tottime',
+def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'tottime'] = 'tottime',
          top: int | None = None) -> None:
   """Profile the function call and print reformatted statistics.
 
@@ -650,13 +638,12 @@ class OrderedEnum(enum.Enum):
 
 
 @contextlib.contextmanager
-def temporary_assignment(variables: dict[str, Any], name: str,
-                         value: Any, /) -> Iterator[None]:
+def temporary_assignment(variables: dict[str, Any], name: str, value: Any, /) -> Iterator[None]:
   """Temporarily assign `value` to the variable named `name` in `variables`.
 
   Args:
-    variables: Usually the `globals()` of the caller module.  Note that a
-      function-scope `locals()` does not work as it should not be modified.
+    variables: Usually the `globals()` of the caller module.  Note that a function-scope
+      `locals()` does not work as it should not be modified.
     name: Name of the variable in `variables` to temporarily assign.
     value: Value assigned to `name` in the lifetime of the context.
 
@@ -672,12 +659,14 @@ def temporary_assignment(variables: dict[str, Any], name: str,
   """
   # https://stackoverflow.com/a/57226721.
   old_value = variables.get(name, _UNDEFINED)
-  variables[name] = value
-  yield
-  if old_value is _UNDEFINED:
-    del variables[name]
-  else:
-    variables[name] = old_value
+  try:
+    variables[name] = value
+    yield
+  finally:
+    if old_value is _UNDEFINED:
+      del variables[name]
+    else:
+      variables[name] = old_value
 
 
 # ** Meta programming
@@ -737,8 +726,7 @@ def terse_str(cls: type, /) -> type:
   """
   assert isinstance(cls, type)
   default_for_field = {
-      field.name: (field.default_factory() if callable(field.default_factory)
-                   else field.default)
+      field.name: (field.default_factory() if callable(field.default_factory) else field.default)
       for field in dataclasses.fields(cls)
       if field.repr
   }
@@ -761,9 +749,9 @@ def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
                         **kwargs: Any) -> Callable[[_F], _F]:
   """Like `functools.lru_cache` but memoization can ignore specified kwargs.
 
-  Because `lru_cache` is unaware of default keyword values, it is recommended
-  that the parameters named in `ignore_kwargs` not have defaults in the
-  decorated function.  Inspired by https://stackoverflow.com/a/30738279
+  Because `lru_cache` is unaware of default keyword values, it is recommended that the parameters
+  named in `ignore_kwargs` not have defaults in the decorated function.
+  Inspired by https://stackoverflow.com/a/30738279
 
   >>> @selective_lru_cache(ignore_kwargs=('kw1'))
   ... def func(arg1: int, *, kw1: bool):
@@ -798,14 +786,12 @@ def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
   def decorator(func: _F) -> _F:
     @lru_decorator
     def helper(*args: Any, **kwargs: Any) -> Any:
-      kwargs = {k: (v.obj if k in ignore_kwargs else v)
-                for k, v in kwargs.items()}
+      kwargs = {k: (v.obj if k in ignore_kwargs else v) for k, v in kwargs.items()}
       return func(*args, **kwargs)
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-      kwargs = {k: (Equals(v) if k in ignore_kwargs else v)
-                for k, v in kwargs.items()}
+      kwargs = {k: (Equals(v) if k in ignore_kwargs else v) for k, v in kwargs.items()}
       return helper(*args, **kwargs)
 
     for attribute in ['cache_clear', 'cache_info', 'cache_parameters']:
@@ -860,8 +846,7 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
 
 
 @contextlib.contextmanager
-def timing(description: str = 'Timing', /, *,
-           enabled: bool = True) -> Iterator[None]:
+def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[None]:
   """Context that reports elapsed time.
 
   Example:
@@ -880,9 +865,11 @@ def timing(description: str = 'Timing', /, *,
   """
   if enabled:
     start = time.monotonic()
-    yield
-    elapsed_time = time.monotonic() - start
-    print(f'{description}: {elapsed_time:.6f}')
+    try:
+      yield
+    finally:
+      elapsed_time = time.monotonic() - start
+      print(f'{description}: {elapsed_time:.6f}')
   else:
     yield
 
@@ -936,13 +923,12 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
   r"""Like `re.search(...).groups()` but with assertion that a match is found.
 
   Args:
-    pattern: A regular expression.  It may include a prefix '^' or suffix '$'
-      to constrain the search location.
+    pattern: A regular expression.  It may include a prefix '^' or suffix '$' to constrain
+      the search location.
     string: Text to search.
 
   Returns:
-    A tuple of strings corresponding to the regex groups found in the pattern
-      match within `string`.
+    A tuple of strings corresponding to the regex groups found in the pattern match within `string`.
 
   Raises:
     ValueError if `pattern` is not found in `string`.
@@ -970,9 +956,9 @@ def as_float(a: _ArrayLike, /) -> _NDArray:
     a: Input array.
 
   Returns:
-    Array 'a' if it is already floating-point (np.float32 or np.float64),
-    else 'a' converted to type np.float32 or np.float64 based on the necessary
-    precision.  Note that 64-bit integers cannot be represented exactly.
+    Array 'a' if it is already floating-point (np.float32 or np.float64), else 'a' converted to
+    type np.float32 or np.float64 based on the necessary precision.  Note that 64-bit integers
+    cannot be represented exactly.
 
   >>> as_float(np.array([1.0, 2.0]))
   array([1., 2.])
@@ -1337,9 +1323,8 @@ class Stats:
     >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
     True
     """
-    return Stats(self._size + other._size, self._sum + other._sum,
-                 self._sum2 + other._sum2, min(self._min, other._min),
-                 max(self._max, other._max))
+    return Stats(self._size + other._size, self._sum + other._sum, self._sum2 + other._sum2,
+                 min(self._min, other._min), max(self._max, other._max))
 
   def __mul__(self, n: int) -> Stats:
     """Return statistics whereby each element appears 'n' times.
@@ -1374,8 +1359,76 @@ def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
   return np.asarray(a)
 
 
+def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _NDArray:
+  """Return array padded along initial dimensions like np.pad(), but where `value` may be an array.
+
+  Args:
+    array: Input data.
+    pad: Sequence of tuples representing pad widths before and after each desired dimension.
+      The length of `pad` may be less than `array.ndim`.  If `pad` is scalar, it is broadcast
+      onto the shape `(array.ndim - value.ndim, 2)`.
+    value: Value to use for padding.  It must be scalar if `pad` is scalar; otherwise its shape
+      must equal `array.shape[len(pad):]`.
+
+  >>> array1 = np.arange(6).reshape(2, 3)
+  >>> pad_array(array1, 1, 9)
+  array([[9, 9, 9, 9, 9],
+         [9, 0, 1, 2, 9],
+         [9, 3, 4, 5, 9],
+         [9, 9, 9, 9, 9]])
+
+  >>> pad_array(array1, ((1, 0), (0, 1)), 9)
+  array([[9, 9, 9, 9],
+         [0, 1, 2, 9],
+         [3, 4, 5, 9]])
+
+  >>> pad_array(array1, ((2, 0),), (6, 7, 8))
+  array([[6, 7, 8],
+         [6, 7, 8],
+         [0, 1, 2],
+         [3, 4, 5]])
+
+  >>> pad_array(array1, ((0, 1),), (6, 7, 8))
+  array([[0, 1, 2],
+         [3, 4, 5],
+         [6, 7, 8]])
+
+  >>> pad_array([[[1, 2], [3, 4]],
+  ...            [[5, 6], [7, 8]]], ((0, 1), (1, 0)), (9, 0))
+  array([[[9, 0],
+          [1, 2],
+          [3, 4]],
+  <BLANKLINE>
+         [[9, 0],
+          [5, 6],
+          [7, 8]],
+  <BLANKLINE>
+         [[9, 0],
+          [9, 0],
+          [9, 0]]])
+
+  >>> pad_array([1, 2, 3], 0, 9)
+  array([1, 2, 3])
+
+  >>> pad_array([1, 2, 3], 1, 9)
+  array([9, 1, 2, 3, 9])
+
+  >>> pad_array([1, 2, 3], ((0, 1),), 9)
+  array([1, 2, 3, 9])
+  """
+  array, pad, value = np.asarray(array), np.asarray(pad), np.asarray(value)
+  if pad.ndim == 0:
+    pad = np.broadcast_to(pad, (array.ndim - value.ndim, 2))
+  check_eq(value.shape, array.shape[len(pad):])
+  cval = np.array([[value, value]] * len(pad) + [[0, 0]] * (array.ndim - len(pad)),
+                  dtype=object)  # Create a ragged array, so use dtype=object.
+  if len(pad) < array.ndim:
+    pad = np.concatenate([pad, [[0, 0]] * (array.ndim - len(pad))])
+  return np.pad(array, pad, constant_values=cval)
+
+
 def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
-  """Return the slices that bound the nonzero elements of array.
+  """Return the tuple of slices that bound the nonzero elements of array.
 
   >>> bounding_slices(())
   (slice(0, 0, None),)
@@ -1416,17 +1469,62 @@ def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   return tuple(slices)
 
 
-def broadcast_block(a: _NDArray,
-                    block_shape: int | tuple[int, ...], /) -> _NDArray:
+def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike = 0) -> _NDArray:
+  """Return `array` trimmed where its boundaries equal `value` (which may be an array).
+
+  >>> bounding_crop([[1, 0], [2, 0]], 3)
+  array([[1, 0],
+         [2, 0]])
+
+  >>> bounding_crop([[1, 0], [2, 0]], 0)
+  array([[1],
+         [2]])
+
+  >>> bounding_crop([[1, 0], [2, 0]], 0, margin=((1, 0), (1, 1)))
+  array([[0, 0, 0],
+         [0, 1, 0],
+         [0, 2, 0]])
+
+  >>> bounding_crop([[1, 2], [-1, -1]], -1)
+  array([[1, 2]])
+
+  >>> bounding_crop([[1, 1], [1, 0]], 1)
+  array([[0]])
+
+  >>> bounding_crop([0, 0, 1, 0], 0)
+  array([1])
+
+  >>> bounding_crop([0, 0, 1, 0], 0, margin=1)
+  array([0, 1, 0])
+
+  >>> bounding_crop([0, 0, 0, 0], 0)
+  array([], dtype=int64)
+
+  >>> bounding_crop([0, 0, 0, 0], 1)
+  array([0, 0, 0, 0])
+
+  >>> bounding_crop([[1, 0], [2, 0], [2, 0]], (2, 0))
+  array([[1, 0]])
+
+  """
+  array, value = np.asarray(array), np.asarray(value)
+  sample_dim = array.ndim - value.ndim
+  array, value = np.asarray(array), np.asarray(value)
+  axis = tuple(range(sample_dim, array.ndim))
+  array = array[bounding_slices((array != value).any(axis))]
+  return pad_array(array, margin, value)
+
+
+def broadcast_block(a: _NDArray, block_shape: int | tuple[int, ...], /) -> _NDArray:
   """Return an array view where each element of 'a' is repeated as a block.
 
   Args:
     a: input array of any dimension.
-    block_shape: shape for the block that each element of 'a' becomes.  If a
-      scalar value, all block dimensions are assigned this value.
+    block_shape: shape for the block that each element of 'a' becomes.  If a scalar value,
+      all block dimensions are assigned this value.
 
   Returns:
-    an array view with shape "a.shape * block_shape".
+    An array view with shape "a.shape * block_shape".
 
   >>> print(broadcast_block(np.arange(8).reshape(2, 4), (2, 3)))
   [[0 0 0 1 1 1 2 2 2 3 3 3]
@@ -1450,8 +1548,7 @@ def broadcast_block(a: _NDArray,
   return np.broadcast_to(a.reshape(shape1), shape2).reshape(final_shape)
 
 
-def np_int_from_ch(a: _ArrayLike, /,
-                   int_from_ch: Mapping[str, int],
+def np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
                    dtype: _DTypeLike = None) -> _NDArray:
   """Return array of integers by mapping from array of characters.
 
@@ -1467,16 +1564,14 @@ def np_int_from_ch(a: _ArrayLike, /,
   return lookup[a]
 
 
-def grid_from_string(string: str, /,
-                     int_from_ch: Mapping[str, int] | None = None,
+def grid_from_string(string: str, /, int_from_ch: Mapping[str, int] | None = None,
                      dtype: _DTypeLike = None) -> _NDArray:
   r"""Return a 2D array created from a multiline string.
 
   Args:
-    string: Nonempty lines correspond to the rows of the grid, with one chr
-      per grid element.
-    int_from_ch: Mapping from the chr in string to integers in the resulting
-      grid; if None, the grid contains chr elements (dtype='<U1').
+    string: Nonempty lines correspond to the rows of the grid, with one chr per grid element.
+    int_from_ch: Mapping from the chr in string to integers in the resulting grid; if None,
+      the grid contains chr elements (dtype='<U1').
     dtype: Integer element type for the result of int_from_ch.
 
   >>> string = '..B\nB.A\n'
@@ -1510,14 +1605,13 @@ def grid_from_string(string: str, /,
   return grid
 
 
-def string_from_grid(grid: _ArrayLike, /,
-                     ch_from_int: Mapping[int, str] | None = None) -> str:
+def string_from_grid(grid: _ArrayLike, /, ch_from_int: Mapping[int, str] | None = None) -> str:
   r"""Return a multiline string created from a 2D array.
 
   Args:
     grid: 2D array-like data containing either chr or integers.
-    ch_from_int: Mapping from each integer in grid to the chr in the resulting
-      string; if None, the grid must contain str or byte elements.
+    ch_from_int: Mapping from each integer in grid to the chr in the resulting string; if None,
+      the grid must contain str or byte elements.
 
   >>> string_from_grid([[0, 1], [0, 0]], {0: '.', 1: '#'})
   '.#\n..'
@@ -1555,30 +1649,28 @@ def grid_from_indices(
 ) -> _NDArray:
   r"""Return an array from (sparse) indices or from a map {index: value}.
 
-  Indices are sequences of integers with some length D, which determines the
-  dimensionality of the output array.  The array shape is computed by bounding
-  the range of index coordinates in each dimension (which may be overriden by
-  'indices_min' and 'indices_max') and is adjusted by the 'pad' parameter.
+  Indices are sequences of integers with some length D, which determines the dimensionality of
+  the output array.  The array shape is computed by bounding the range of index coordinates in
+  each dimension (which may be overriden by 'indices_min' and 'indices_max') and is adjusted
+  by the 'pad' parameter.
 
   Args:
     iterable_or_map: Iterable of indices or a mapping from indices to values.
     background: Value assigned to the array elements not in 'iterable_or_map'.
-    foreground: If 'iterable_or_map' is an iterable, the array value assigned to
-      its indices.
-    indices_min: For each dimension, the index coordinate that gets mapped to
-      coordinate zero in the array.  Replicated if an integer.
-    indices_max: For each dimension, the index coordinate that gets mapped to
-      the last coordinate in the array.  Replicated if an integer.
-    pad: For each dimension d, number of additional slices of 'background'
-      values before and after the range [indices_min[d], indices_max[d]].
+    foreground: If 'iterable_or_map' is an iterable, the array value assigned to its indices.
+    indices_min: For each dimension, the index coordinate that gets mapped to coordinate zero in
+      the array.  Replicated if an integer.
+    indices_max: For each dimension, the index coordinate that gets mapped to the last coordinate
+      in the array.  Replicated if an integer.
+    pad: For each dimension d, number of additional slices of 'background' values before and after
+      the range [indices_min[d], indices_max[d]].
     dtype: Data type of the output array.
 
   Returns:
-    A D-dimensional numpy array initialized with the value 'background' and
-    then sparsely assigned the elements in the parameter 'iterable_or_map'
-    (using 'foreground' value if an iterable, or the map values if a map).
-    By default, array spans a tight bounding box of the indices, but these
-    bounds can be overridden using 'indices_min', 'indices_max', and 'pad'.
+    A D-dimensional numpy array initialized with the value 'background' and then sparsely assigned
+    the elements in the parameter 'iterable_or_map' (using 'foreground' value if an iterable, or
+    the map values if a map).  By default, array spans a tight bounding box of the indices, but
+    these bounds can be overridden using 'indices_min', 'indices_max', and 'pad'.
 
   >>> l = [(-1, -2), (-1, 1), (1, 0)]
   >>> grid_from_indices(l)
@@ -1682,15 +1774,15 @@ def fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
   """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
 
   Args:
-    shape: Input dimensions.  These must be positive, except that one dimension
-      may be -1 to indicate that it should be computed.  If all dimensions are
-      positive, these must satisfy math.prod(shape) >= num.
+    shape: Input dimensions.  These must be positive, except that one dimension may be -1 to
+      indicate that it should be computed.  If all dimensions are positive, these must satisfy
+      math.prod(shape) >= num.
     num: Number of elements to fit into the output shape.
 
   Returns:
-    The original 'shape' if all its dimensions are positive.  Otherwise, a
-    new_shape where the unique dimension with value -1 is replaced by the
-    smallest number such that math.prod(new_shape) >= num.
+    The original 'shape' if all its dimensions are positive.  Otherwise, a new_shape where the
+    unique dimension with value -1 is replaced by the smallest number such that
+    math.prod(new_shape) >= num.
 
   >>> fit_shape((3, 4), 10)
   (3, 4)
@@ -1730,29 +1822,26 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   """Return an output array formed as a packed grid of input arrays.
 
   Args:
-    arrays: Sequence of input arrays with the same data type and rank.  The
-      arrays must have the same trailing dimensions arrays[].shape[len(shape):].
-      The leading dimensions arrays[].shape[:len(shape)] may be different and
-      these are packed together as a grid to form output.shape[:len(shape)].
-    shape: Dimensions of the grid used to unravel the arrays before packing. The
-      dimensions must be positive, with prod(shape) >= len(arrays).  One
-      dimension of shape may be -1, in which case it is computed automatically
-      as the smallest value such that prod(shape) >= len(arrays).
-    background: Broadcastable value used for the unassigned elements of the
-      output array.
-    align: Relative position ('center', 'start', or 'stop') for each input array
-      and for each axis within its output grid cell.  The value must be
-      broadcastable onto the shape [len(arrays), len(shape)].
-    spacing: Extra space between grid elements.  The value may be specified
-      per-axis, i.e., it must be broadcastable onto the shape [len(shape)].
-    round_to_even: If True, ensure that the final output dimension of each axis
-      is even.  The value must be broadcastable onto the shape [len(shape)].
+    arrays: Sequence of input arrays with the same data type and rank.  The arrays must have the
+      same trailing dimensions arrays[].shape[len(shape):].  The leading dimensions
+      arrays[].shape[:len(shape)] may be different and these are packed together as a grid to form
+      output.shape[:len(shape)].
+    shape: Dimensions of the grid used to unravel the arrays before packing. The dimensions must
+      be positive, with prod(shape) >= len(arrays).  One dimension of shape may be -1, in which
+      case it is computed automatically as the smallest value such that prod(shape) >= len(arrays).
+    background: Broadcastable value used for the unassigned elements of the output array.
+    align: Relative position ('center', 'start', or 'stop') for each input array and for each axis
+      within its output grid cell.  The value must be broadcastable onto the shape
+      [len(arrays), len(shape)].
+    spacing: Extra space between grid elements.  The value may be specified per-axis, i.e., it must
+      be broadcastable onto the shape [len(shape)].
+    round_to_even: If True, ensure that the final output dimension of each axis is even.  The value
+      must be broadcastable onto the shape [len(shape)].
 
   Returns:
     A numpy output array of the same type as the input 'arrays', with
-    output.shape = packed_shape + arrays[0].shape[len(shape):], where
-    packed_shape is obtained by packing arrays[:].shape[:len(shape)] into a
-    grid of the specified 'shape'.
+    output.shape = packed_shape + arrays[0].shape[len(shape):], where packed_shape is obtained by
+    packing arrays[:].shape[:len(shape)] into a grid of the specified 'shape'.
 
   >>> assemble_arrays(
   ...    [np.array([[1, 2, 3]]), np.array([[5], [6]]), np.array([[7]]),
@@ -1799,8 +1888,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
     axis_origins.append(spaced_lengths.cumsum())
 
   # [shape] -> smallest corner coords in output array.
-  origins = np.moveaxis(np.array(np.meshgrid(*axis_origins, indexing='ij')),
-                        0, -1)
+  origins = np.moveaxis(np.array(np.meshgrid(*axis_origins, indexing='ij')), 0, -1)
 
   # Initialize the output array.
   output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
@@ -1829,9 +1917,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   return output_array
 
 
-def shift(array: _ArrayLike,
-          offset: _ArrayLike, /,
-          constant_values: _ArrayLike = 0) -> _NDArray:
+def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike = 0) -> _NDArray:
   """Return a copy of the array shifted by offset, with fill using constant.
 
   >>> array = np.arange(1, 13).reshape(3, 4)
@@ -1942,12 +2028,10 @@ class UnionFind(Generic[_T]):
     return a
 
 
-def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *,
-                     cycle_check: bool = False) -> list[_T]:
-  """Given a dag (directed acyclic graph), return a list of graph nodes such
-  that for every directed edge (u, v) in the graph, u is before v in the list.
-  See https://en.wikipedia.org/wiki/Topological_sorting and
-  https://stackoverflow.com/a/47234034 .
+def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool = False) -> list[_T]:
+  """Given a dag (directed acyclic graph), return a list of graph nodes such that for every
+  directed edge (u, v) in the graph, u is before v in the list.
+  See https://en.wikipedia.org/wiki/Topological_sorting and https://stackoverflow.com/a/47234034 .
 
   >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
   >>> topological_sort(graph)
@@ -1972,7 +2056,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *,
 
   all_dependents: set[_T] = set()
   all_dependents.update(*graph.values())
-  for node in reversed(graph):
+  for node in reversed(list(graph)):
     if node not in all_dependents:
       recurse(node)
 
@@ -1991,7 +2075,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *,
 
 def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
                            y_desired: float, /) -> int:
-  """Return x such that feval(x) <= y_desired < feval(x + 1),
+  """Return x such that feval(x) <= y_desired < feval(x + 1).
 
   Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
 
@@ -2042,9 +2126,8 @@ def run(args: str | Sequence[str], /) -> None:
   """Execute command, printing output from stdout and stderr.
 
   Args:
-    args: Command to execute, which can be either a string or a sequence of word
-      strings, as in `subprocess.run()`.  If `args` is a string, the shell is
-      invoked to interpret it.
+    args: Command to execute, which can be either a string or a sequence of word strings, as in
+      `subprocess.run()`.  If `args` is a string, the shell is invoked to interpret it.
 
   Raises:
     RuntimeError: If the command's exit code is nonzero.
