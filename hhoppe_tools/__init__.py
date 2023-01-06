@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.4'
+__version__ = '1.1.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -39,6 +39,7 @@ import sys
 import tempfile  # pylint:disable=unused-import # noqa
 import time
 import traceback
+import types
 import typing
 from typing import Any, Generic, Literal, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
@@ -58,6 +59,49 @@ _NDArray = npt.NDArray[Any]
 _DTypeLike = npt.DTypeLike
 _ArrayLike = npt.ArrayLike
 _Path = Union[str, os.PathLike]
+
+
+# ** numba
+
+@typing.overload  # Bare decorator.
+def noop_decorator(func: _F, /) -> _F:
+  ...
+
+
+@typing.overload  # Decorator with arguments.
+def noop_decorator(  # type: ignore[misc]
+    *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+  ...
+
+
+def noop_decorator(*args: Any, **kwargs: Any) -> Any:
+  """Return function decorated with no-op; invokable with or without args.
+
+  >>> @noop_decorator
+  ... def func1(x): return x * 10
+
+  >>> @noop_decorator()
+  ... def func2(x): return x * 10
+
+  >>> @noop_decorator(2, 3)
+  ... def func3(x): return x * 10
+
+  >>> @noop_decorator(keyword=True)
+  ... def func4(x): return x * 10
+
+  >>> check_eq(func1(1) + func2(2) + func3(4) + func4(8), 15 * 10)
+  """
+  if len(args) != 1 or not callable(args[0]) or kwargs:
+    return noop_decorator  # Decorator is invoked with arguments; ignore them.
+  func: Callable[..., Any] = args[0]
+  return func
+
+
+try:
+  import numba
+except ModuleNotFoundError:
+  numba = sys.modules['numba'] = types.ModuleType('numba')
+  numba.njit = noop_decorator
 
 
 # ** Language extensions
@@ -670,40 +714,6 @@ def temporary_assignment(variables: dict[str, Any], name: str, value: Any, /) ->
 
 
 # ** Meta programming
-
-
-@typing.overload  # Bare decorator.
-def noop_decorator(func: _F, /) -> _F:
-  ...
-
-
-@typing.overload  # Decorator with arguments.
-def noop_decorator(  # type: ignore[misc]
-    *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
-  ...
-
-
-def noop_decorator(*args: Any, **kwargs: Any) -> Any:
-  """Return function decorated with no-op; invokable with or without args.
-
-  >>> @noop_decorator
-  ... def func1(x): return x * 10
-
-  >>> @noop_decorator()
-  ... def func2(x): return x * 10
-
-  >>> @noop_decorator(2, 3)
-  ... def func3(x): return x * 10
-
-  >>> @noop_decorator(keyword=True)
-  ... def func4(x): return x * 10
-
-  >>> check_eq(func1(1) + func2(1) + func3(1) + func4(1), 40)
-  """
-  if len(args) != 1 or not callable(args[0]) or kwargs:
-    return noop_decorator  # Decorator is invoked with arguments; ignore them.
-  func: Callable[..., Any] = args[0]
-  return func
 
 
 def terse_str(cls: type, /) -> type:
@@ -1950,6 +1960,40 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
   return new_array
 
 
+@numba.njit  # type: ignore[misc]
+def array_index(array: _NDArray, item: Any) -> int:
+  """Return the index in `array` of the first element equal to `item`, or -1.
+
+  See https://stackoverflow.com/a/41578614/1190077
+
+  >>> array_index(np.array([], int), 3)
+  -1
+  >>> array_index(np.array([1, 2]), 3)
+  -1
+  >>> array_index(np.array([1, 2, 1]), 1)
+  0
+  >>> array_index(np.array([1, 2, 1]), 2)
+  1
+  >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 4]))
+  -1
+  >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 1]))
+  1
+  >>> array_index(np.array(list('abcdef')), 'g')
+  -1
+  >>> array_index(np.array(list('abcdef')), 'd')
+  3
+  """
+  if array.ndim == 1:
+    for i, value in enumerate(array):
+      if value == item:
+        return i
+  else:
+    for i, value in enumerate(array):
+      if np.all(value == item):
+        return i
+  return -1
+
+
 # ** Graph algorithms
 
 
@@ -2099,6 +2143,97 @@ def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
     else:
       xh = xm
   return xl
+
+
+@numba.njit  # type: ignore[misc]
+def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
+  """Return the index of the first location of `subseq` in `seq`, or -1 if absent.
+
+  See https://en.wikipedia.org/wiki/Boyer-Moore-Horspool_algorithm.
+
+  Args:
+    seq: Sequence to search; it must be an array of non-negative integers.
+    subseq: Pattern to locate in the sequence; it must be an array of non-negative integers.
+
+  >>> boyer_subsequence_find(np.array([], int), np.array([1]))
+  -1
+  >>> boyer_subsequence_find(np.array([2]), np.array([1]))
+  -1
+  >>> boyer_subsequence_find(np.array([1, 2]), np.array([1]))
+  0
+  >>> boyer_subsequence_find(np.array([2, 1]), np.array([1]))
+  1
+  >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([1, 2]))
+  1
+  >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([2, 2]))
+  -1
+  """
+  m, n = len(subseq), len(seq)
+  skip_table = np.full(subseq.max() + 1, m)
+  for i, value in enumerate(subseq[:-1]):
+    skip_table[value] = m - 1 - i
+
+  i = 0
+  while i + m <= n:
+    j = m - 1
+    e = e_last = seq[i + j]
+    while True:
+      if e != subseq[j]:
+        i += skip_table[e_last] if 0 <= e_last < len(skip_table) else m
+        break
+      if j == 0:
+        return i
+      j -= 1
+      e = seq[i + j]
+
+  return -1
+
+
+@numba.njit  # type: ignore[misc]
+def _boyer_subsequence_findall_helper(seq: _NDArray, subseq: _NDArray, disjoint: bool) -> list[int]:
+  m, n = len(subseq), len(seq)
+  skip_table = np.full(subseq.max() + 1, m)
+  for i, value in enumerate(subseq[:-1]):
+    skip_table[value] = m - 1 - i
+  result = []
+
+  i = 0
+  while i + m <= n:
+    j = m - 1
+    e = e_last = seq[i + j]
+    while True:
+      if e != subseq[j]:
+        i += skip_table[e_last] if 0 <= e_last < len(skip_table) else m
+        break
+      if j == 0:
+        result.append(i)
+        i += m if disjoint else 1
+        break
+      j -= 1
+      e = seq[i + j]
+
+  return result
+
+
+def boyer_subsequence_findall(seq: _NDArray, subseq: _NDArray, disjoint: bool = False) -> list[int]:
+  """Return the indices of the locations of `subseq` in `seq`.  See `boyer_subsequence_find`.
+
+  >>> boyer_subsequence_findall(np.array([], int), np.array([1, 3]))
+  []
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([1, 3]))
+  []
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([1, 2]))
+  [1]
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([2, 1]))
+  [2]
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2]), np.array([1, 2]))
+  [1, 3]
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2, 1]), np.array([1, 2, 1]))
+  [1, 3]
+  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2, 1]), np.array([1, 2, 1]), disjoint=True)
+  [1]
+  """
+  return _boyer_subsequence_findall_helper(np.asarray(seq), np.asarray(subseq), disjoint)
 
 
 # ** General I/O
