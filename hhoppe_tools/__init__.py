@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.6'
+__version__ = '1.1.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -25,18 +25,17 @@ import doctest
 import enum
 import functools
 import gc
-import io  # pylint: disable=unused-import
+import io
 import importlib.util
 import itertools
 import math
-import os  # pylint: disable=unused-import
+import os
 import pathlib
 import pstats
 import re
 import stat
 import subprocess
 import sys
-import tempfile  # pylint:disable=unused-import # noqa
 import time
 import traceback
 import types
@@ -1994,6 +1993,60 @@ def array_index(array: _NDArray, item: Any) -> int:
   return -1
 
 
+def _get_pil_font(font_size: int, font_name: str) -> Any:
+  import matplotlib
+  import PIL.ImageFont
+  font_file = f'{matplotlib.__path__[0]}/mpl-data/fonts/ttf/{font_name}.ttf'
+  return PIL.ImageFont.truetype(font_file, font_size)  # Slow ~1.3 s but gets cached.
+
+
+def rasterized_text(
+    text: str,
+    *,
+    background: _ArrayLike = 255,
+    foreground: _ArrayLike = 0,
+    fontsize: int = 14,
+    fontname: str = 'cmtt10',  # Also 'cmr10'.
+    spacing: int = 4,  # For multiline text.
+    shape: tuple[int, int] | None = None,
+    margin: _ArrayLike = 1,
+) -> _NDArray:
+  """Returns a uint8 RGB image with the text rasterized into it.
+
+  >>> image = rasterized_text('Hello')
+  >>> image[0][0]
+  array([255, 255, 255], dtype=uint8)
+  >>> image.shape
+  (11, 38, 3)
+  """
+  background = np.broadcast_to(background, 3)
+  foreground = np.broadcast_to(foreground, 3)
+  pil_font = _get_pil_font(fontsize, fontname)
+  import PIL.Image
+  import PIL.ImageDraw
+  large_shape = int(fontsize * 1.2 + 10), int(fontsize * 1.2 * len(text)), 3
+  pil_image = PIL.Image.fromarray(np.full(large_shape, background, dtype=np.uint8))
+  draw = PIL.ImageDraw.Draw(pil_image)
+  anchor = 20, 5
+  draw.text(anchor, text, fill=tuple(foreground), font=pil_font, spacing=spacing)
+  image = np.array(pil_image)
+  image = bounding_crop(image, background)
+  if shape is not None:
+    assert image.shape[0] <= shape[0] and image.shape[1] <= shape[1]
+    pad = (shape[0] - image.shape[0], 0), (0, shape[1] - image.shape[1])
+    image = pad_array(image, pad, background)
+  return pad_array(image, margin, background)
+
+
+def overlay_text(image: _NDArray, yx: tuple[int, int], text: str, **kwargs: Any) -> None:
+  """Modifies `image` by overlaying rasterized text."""
+  assert image.ndim == 3 and image.dtype == np.uint8
+  assert len(yx) == 2
+  image2 = rasterized_text(text, **kwargs)
+  assert all(0 <= yx[c] and yx[c] + image2.shape[c] <= image.shape[c] for c in range(2))
+  image[tuple(slice(yx[c], yx[c] + image2.shape[c]) for c in range(2))] = image2
+
+
 # ** Graph algorithms
 
 
@@ -2242,6 +2295,7 @@ def boyer_subsequence_findall(seq: _NDArray, subseq: _NDArray, disjoint: bool = 
 def is_executable(path: _Path, /) -> bool:
   """Check if a file is executable.
 
+  >>> import tempfile
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
   ...   _ = path.write_text('test')
@@ -2267,6 +2321,7 @@ def run(args: str | Sequence[str], /) -> None:
   Raises:
     RuntimeError: If the command's exit code is nonzero.
 
+  >>> import tempfile
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
   ...   run(f'echo ab >{path}')
