@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.5'
+__version__ = '1.1.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1519,9 +1519,9 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
   """
   array, value = np.asarray(array), np.asarray(value)
   sample_dim = array.ndim - value.ndim
-  array, value = np.asarray(array), np.asarray(value)
   axis = tuple(range(sample_dim, array.ndim))
-  array = array[bounding_slices((array != value).any(axis))]
+  mask = (array != value).any(axis)  # Unfortunately this step is the bottleneck.
+  array = array[bounding_slices(mask)]
   return pad_array(array, margin, value)
 
 
