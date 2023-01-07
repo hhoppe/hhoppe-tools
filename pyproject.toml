@@ -30,6 +30,8 @@ repository = "https://github.com/hhoppe/hhoppe-tools"
 # Development deps (unittest, linting, formating,...)
 # Installed through `pip install .[dev]`
 dev = [
+    "matplotlib",
+    "Pillow",
     # "pytest",
     # "pytest-xdist",
     # "pylint>=2.6.0",
