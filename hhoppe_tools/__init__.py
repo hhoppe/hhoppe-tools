@@ -4,7 +4,7 @@
 
 Useful commands to test and polish this file:
 
-c:/windows/sysnative/wsl -e bash -lc 'cd ..; echo autopep8; autopep8 -j8 -d .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
+cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
 env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 """
@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.7'
+__version__ = '1.1.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -26,7 +26,6 @@ import enum
 import functools
 import gc
 import io
-import importlib.util
 import itertools
 import math
 import os
@@ -106,39 +105,6 @@ except ModuleNotFoundError:
 # ** Language extensions
 
 
-def assert_value(value: _T | None, /) -> _T:
-  """Return value after asserting it, as in a functional assert.
-
-  >>> assert_value('word')
-  'word'
-
-  >>> assert_value(33)
-  33
-
-  >>> assert_value(0.0)
-  Traceback (most recent call last):
-  ...
-  AssertionError: 0.0
-
-  >>> assert_value([])
-  Traceback (most recent call last):
-  ...
-  AssertionError: []
-
-  >>> assert_value(None)
-  Traceback (most recent call last):
-  ...
-  AssertionError: None
-
-  >>> assert_value(False)
-  Traceback (most recent call last):
-  ...
-  AssertionError: False
-  """
-  assert value, value
-  return value
-
-
 def assert_not_none(value: _T | None, /) -> _T:
   """Return value after asserting that it is not None.
 
@@ -202,7 +168,7 @@ def print_err(*args: str, **kwargs: Any) -> None:
   print(*args, **kwargs)
 
 
-def dump_vars(*args: Any) -> str:
+def _dump_vars(*args: Any) -> str:
   """Return a string showing the values of each expression.
 
   Specifically, convert each expression (contributed by the caller to the variable-parameter list
@@ -214,17 +180,21 @@ def dump_vars(*args: Any) -> str:
   Args:
     *args: Expressions to show.
   Raises:
-    Exception: If the dump_vars(...) does not fit on a single source line.
+    Exception: If the _dump_vars(...) does not fit on a single source line.
 
   >>> a = 45
   >>> b = 'Hello'
-  >>> dump_vars(a)
+
+  >>> _dump_vars(a)
   'a = 45'
-  >>> dump_vars(b)
+
+  >>> _dump_vars(b)
   'b = Hello'
-  >>> dump_vars(a, b, (a * 2) + 5, b + ' there')
+
+  >>> _dump_vars(a, b, (a * 2) + 5, b + ' there')
   "a = 45, b = Hello, (a * 2) + 5 = 95, b + ' there' = Hello there"
-  >>> dump_vars([3, 4, 5][1])
+
+  >>> _dump_vars([3, 4, 5][1])
   '[3, 4, 5][1] = 4'
   """
 
@@ -243,7 +213,7 @@ def dump_vars(*args: Any) -> str:
 
   # Adapted from make_dict() in https://stackoverflow.com/a/2553524 .
   stack = traceback.extract_stack()
-  this_function_name = stack[-1][2]  # i.e. initially 'dump_vars'.
+  this_function_name = stack[-1][2]  # i.e. initially '_dump_vars'.
   for stackframe in stack[-2::-1]:
     filename, unused_line_number, function_name, text = stackframe  # Caller.
     # https://docs.python.org/3/tutorial/errors.html:
@@ -254,7 +224,7 @@ def dump_vars(*args: Any) -> str:
     prefix = this_function_name + '('
     begin = text.find(prefix)
     if begin < 0:
-      raise Exception(f'dump_vars: cannot find "{prefix}" in line "{text}"')
+      raise Exception(f'_dump_vars: cannot find "{prefix}" in line "{text}"')
     begin += len(this_function_name)
     end = begin + matching_parenthesis(text[begin:])
     parameter_string = text[begin + 1:end].strip()
@@ -300,7 +270,7 @@ def show(*args: Any) -> None:
   >>> s
   'a = <string>, literal_string, s, a * 2 = <string><string>, 34 // 3 = 11\n'
   """
-  print(dump_vars(*args), flush=True)
+  print(_dump_vars(*args), flush=True)
 
 
 def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
@@ -346,6 +316,7 @@ def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) 
   >>> [func(i) for i in [1, 2, 1, 3, 1]]
   [1, 4, 1, 9, 1]
   >>> check_eq(func.cache_info().currsize, 3)
+
   >>> clear_lru_caches(globals())
   >>> check_eq(func.cache_info().hits, 0)
   """
@@ -524,32 +495,6 @@ def get_time(func: Callable[[], Any], /, **kwargs: Any) -> float:
   >>> assert 0.15 < elapsed < 0.25, elapsed
   """
   return get_time_and_result(func, **kwargs)[0]
-
-
-def format_float(value: float, /, precision: int) -> str:
-  """Return the non-scientific representation of value with specified digits of precision.
-
-  >>> format_float(1234, 3)
-  '1230'
-
-  >>> format_float(0.1234, 3)
-  '0.123'
-
-  >>> format_float(0.1230, 3)
-  '0.123'
-
-  >>> format_float(0.01236, 3)
-  '0.0124'
-
-  >>> format_float(123, 3)
-  '123'
-
-  >>> format_float(120, 3)
-  '120'
-  """
-  text = np.format_float_positional(
-      value, fractional=False, unique=False, precision=precision)
-  return text.rstrip('.')
 
 
 def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
@@ -822,28 +767,27 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
   >>> class Node:
   ...   def __init__(self): self.attrib = 2
   >>> test_module = create_module('test_module', [some_function, Node])
+
   >>> test_module.some_function(10)
   'success'
+
   >>> assert 'some_function' in dir(test_module)
+
   >>> help(test_module.some_function)
   Help on function some_function in module test_module:
   <BLANKLINE>
   some_function(*args, **kwargs)
   <BLANKLINE>
+
   >>> node = test_module.Node()
   >>> type(node)
   <class 'test_module.Node'>
   >>> node.attrib
   2
   """
-  # https://stackoverflow.com/a/53080237
   module = sys.modules.get(module_name)
   if not module:
-    spec = importlib.util.spec_from_loader(module_name, loader=None)
-    assert spec
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-
+    module = sys.modules[module_name] = types.ModuleType(module_name)
   for element in elements:
     setattr(module, element.__name__, element)
     element.__module__ = module_name
@@ -926,6 +870,32 @@ def show_biggest_vars(variables: Mapping[str, Any], /, n: int = 10) -> None:
 
 
 # ** String functions
+
+
+def format_float(value: float, /, precision: int) -> str:
+  """Return the non-scientific representation of value with specified digits of precision.
+
+  >>> format_float(1234, 3)
+  '1230'
+
+  >>> format_float(0.1234, 3)
+  '0.123'
+
+  >>> format_float(0.1230, 3)
+  '0.123'
+
+  >>> format_float(0.01236, 3)
+  '0.0124'
+
+  >>> format_float(123, 3)
+  '123'
+
+  >>> format_float(120, 3)
+  '120'
+  """
+  text = np.format_float_positional(
+      value, fractional=False, unique=False, precision=precision)
+  return text.rstrip('.')
 
 
 def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
@@ -1048,32 +1018,6 @@ def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   array([1.        , 1.41421356])
   """
   return np.sqrt(np.mean(np.square(as_float(a)), axis, np.float64))
-
-
-def lenient_subtract(a: _ArrayLike, b: _ArrayLike, /) -> _NDArray:
-  """Return a - b, but returns 0 where a and b are the same signed infinity.
-
-  >>> inf = math.inf
-  >>> lenient_subtract([3., 3., inf, inf, -inf, -inf],
-  ...                  [1., inf, inf, -inf, inf, -inf])
-  array([  2., -inf,   0.,  inf, -inf,   0.])
-  """
-  a = np.asarray(a)
-  b = np.asarray(b)
-  same_infinity = ((np.isposinf(a) & np.isposinf(b)) |
-                   (np.isneginf(a) & np.isneginf(b)))
-  return np.subtract(a, b, out=np.zeros_like(a), where=~same_infinity)
-
-
-def print_array(a: _ArrayLike, /, **kwargs: Any) -> None:
-  """Print the array.
-
-  >>> print_array(np.arange(6).reshape(2, 3))
-  array([[0, 1, 2],
-         [3, 4, 5]]) shape=(2, 3) dtype=int64
-  """
-  x = np.asarray(a)
-  print(f'{repr(x)} shape={x.shape} dtype={x.dtype}', **kwargs)
 
 
 def prime_factors(n: int, /) -> list[int]:
@@ -1283,6 +1227,7 @@ class Stats:
 
     >>> Stats([1, 1, 4]).rms()
     2.449489742783178
+
     >>> Stats([-1, 1]).rms()
     1.0
     """
@@ -1359,7 +1304,7 @@ def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
   array([[0, 1, 2],
          [0, 1, 2]])
 
-  >>> array_always(np.array([[1, 2], [3, 4]]))
+  >>> array_always([[1, 2], [3, 4]])
   array([[1, 2],
          [3, 4]])
   """
@@ -1524,44 +1469,11 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
   return pad_array(array, margin, value)
 
 
-def broadcast_block(a: _NDArray, block_shape: int | tuple[int, ...], /) -> _NDArray:
-  """Return an array view where each element of 'a' is repeated as a block.
-
-  Args:
-    a: input array of any dimension.
-    block_shape: shape for the block that each element of 'a' becomes.  If a scalar value,
-      all block dimensions are assigned this value.
-
-  Returns:
-    An array view with shape "a.shape * block_shape".
-
-  >>> print(broadcast_block(np.arange(8).reshape(2, 4), (2, 3)))
-  [[0 0 0 1 1 1 2 2 2 3 3 3]
-   [0 0 0 1 1 1 2 2 2 3 3 3]
-   [4 4 4 5 5 5 6 6 6 7 7 7]
-   [4 4 4 5 5 5 6 6 6 7 7 7]]
-
-  >>> a = np.arange(6).reshape(2, 3)
-  >>> result = broadcast_block(a, (2, 3))
-  >>> result.shape
-  (4, 9)
-  >>> np.all(result == np.kron(a, np.ones((2, 3), a.dtype)))
-  True
-  """
-  block_shape2 = np.broadcast_to(np.asarray(block_shape), (a.ndim,))
-  # Inspired from https://stackoverflow.com/a/52339952
-  # and https://stackoverflow.com/a/52346065
-  shape1 = tuple(v for pair in zip(a.shape, (1,) * a.ndim) for v in pair)
-  shape2 = tuple(v for pair in zip(a.shape, block_shape2) for v in pair)
-  final_shape = a.shape * block_shape2
-  return np.broadcast_to(a.reshape(shape1), shape2).reshape(final_shape)
-
-
-def np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
-                   dtype: _DTypeLike = None) -> _NDArray:
+def _np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
+                    dtype: _DTypeLike = None) -> _NDArray:
   """Return array of integers by mapping from array of characters.
 
-  >>> np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
+  >>> _np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
   array([0, 1, 2, 0, 1])
   """
   # Adapted from https://stackoverflow.com/a/49566980
@@ -1610,7 +1522,7 @@ def grid_from_string(string: str, /, int_from_ch: Mapping[str, int] | None = Non
   if int_from_ch is None:
     assert dtype is None
   else:
-    grid = np_int_from_ch(grid, int_from_ch, dtype)
+    grid = _np_int_from_ch(grid, int_from_ch, dtype)
   return grid
 
 
@@ -1779,7 +1691,7 @@ def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
   return image
 
 
-def fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
+def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
   """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
 
   Args:
@@ -1793,18 +1705,18 @@ def fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
     unique dimension with value -1 is replaced by the smallest number such that
     math.prod(new_shape) >= num.
 
-  >>> fit_shape((3, 4), 10)
+  >>> _fit_shape((3, 4), 10)
   (3, 4)
 
-  >>> fit_shape((5, 2), 11)
+  >>> _fit_shape((5, 2), 11)
   Traceback (most recent call last):
   ...
   ValueError: (5, 2) is insufficiently large for 11 elements.
 
-  >>> fit_shape((3, -1), 10)
+  >>> _fit_shape((3, -1), 10)
   (3, 4)
 
-  >>> fit_shape((-1, 10), 51)
+  >>> _fit_shape((-1, 10), 51)
   (6, 10)
   """
   shape = tuple(shape)
@@ -1863,7 +1775,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   num = len(arrays)
   if num == 0:
     raise ValueError('There must be at least one input array.')
-  shape = fit_shape(shape, num)
+  shape = _fit_shape(shape, num)
   if any(array.dtype != arrays[0].dtype for array in arrays):
     raise ValueError(f'Arrays {arrays} have different types.')
   tail_dims = arrays[0].shape[len(shape):]
@@ -1967,18 +1879,25 @@ def array_index(array: _NDArray, item: Any) -> int:
 
   >>> array_index(np.array([], int), 3)
   -1
+
   >>> array_index(np.array([1, 2]), 3)
   -1
+
   >>> array_index(np.array([1, 2, 1]), 1)
   0
+
   >>> array_index(np.array([1, 2, 1]), 2)
   1
+
   >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 4]))
   -1
+
   >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 1]))
   1
+
   >>> array_index(np.array(list('abcdef')), 'g')
   -1
+
   >>> array_index(np.array(list('abcdef')), 'd')
   3
   """
@@ -2001,23 +1920,43 @@ def _get_pil_font(font_size: int, font_name: str) -> Any:
 
 
 def rasterized_text(
-    text: str,
-    *,
+    text: str, *,
     background: _ArrayLike = 255,
     foreground: _ArrayLike = 0,
     fontsize: int = 14,
-    fontname: str = 'cmtt10',  # Also 'cmr10'.
-    spacing: int = 4,  # For multiline text.
+    fontname: str = 'cmtt10',
+    spacing: int = 4,
+    align: str = 'left',
     shape: tuple[int, int] | None = None,
     margin: _ArrayLike = 1,
 ) -> _NDArray:
   """Returns a uint8 RGB image with the text rasterized into it.
+
+  Args:
+    text: String to rasterize.  Embedded newlines indicate multiline tet.
+    background: RGB background color of created image.  Scalar indicates gray value.
+    foreground: RGB color rasterized text.  Scalar indicates gray value.
+    fontsize: Size of rasterized font.
+    fontname: Name of font compatible with `PIL.ImageFont.truetype()`, e.g., 'cmr10'.
+    spacing: Number of pixels between lines in multiline text.
+    align: Horizontal alignment of multiline text.
+    shape: Dimensions (height, width) for rasterized text image, prior to addition of margin.
+      Any extra Space is added at the right and below the text.  If None, dimensions are
+      determined automatically based on rasterized content.  An explicit shape is useful to
+      avoid jitter in video animations.
+    margin: Number of pixels around the rasterized text, in the format of `hh.pad_array`.
 
   >>> image = rasterized_text('Hello')
   >>> image[0][0]
   array([255, 255, 255], dtype=uint8)
   >>> image.shape
   (11, 38, 3)
+
+  >>> image = rasterized_text('Hello', shape=(15, 40), background=250)
+  >>> image[0][0]
+  array([250, 250, 250], dtype=uint8)
+  >>> image.shape
+  (17, 42, 3)
   """
   background = np.broadcast_to(background, 3)
   foreground = np.broadcast_to(foreground, 3)
@@ -2028,7 +1967,7 @@ def rasterized_text(
   pil_image = PIL.Image.fromarray(np.full(large_shape, background, dtype=np.uint8))
   draw = PIL.ImageDraw.Draw(pil_image)
   anchor = 20, 5
-  draw.text(anchor, text, fill=tuple(foreground), font=pil_font, spacing=spacing)
+  draw.text(anchor, text, fill=tuple(foreground), font=pil_font, spacing=spacing, align=align)
   image = np.array(pil_image)
   image = bounding_crop(image, background)
   if shape is not None:
@@ -2064,6 +2003,7 @@ class UnionFind(Generic[_T]):
   True
   >>> union_find.same('hello', 'different')
   False
+
   >>> union_find.union('hello', 'there')
   >>> union_find.find('hello')
   'hello'
@@ -2071,6 +2011,7 @@ class UnionFind(Generic[_T]):
   'hello'
   >>> union_find.same('hello', 'there')
   True
+
   >>> union_find.union('there', 'here')
   >>> union_find.same('hello', 'here')
   True
@@ -2094,6 +2035,7 @@ class UnionFind(Generic[_T]):
 
     >>> union_find = UnionFind[int]()
     >>> assert not union_find.same((1, 2), (2, 3))
+
     >>> union_find.union((1, 2), (2, 3))
     >>> assert union_find.same((1, 2), (2, 3))
     """
@@ -2108,6 +2050,7 @@ class UnionFind(Generic[_T]):
     >>> check_eq(union_find.find('a'), 'a')
     >>> check_eq(union_find.find('b'), 'a')
     >>> check_eq(union_find.find('c'), 'c')
+
     >>> union_find.union('d', 'a')
     >>> check_eq(union_find.find('b'), 'd')
     """
@@ -2178,12 +2121,16 @@ def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
 
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 15)
   3
+
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 16)
   4
+
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 17)
   4
+
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 24)
   4
+
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 25)
   5
   """
@@ -2210,14 +2157,19 @@ def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
 
   >>> boyer_subsequence_find(np.array([], int), np.array([1]))
   -1
+
   >>> boyer_subsequence_find(np.array([2]), np.array([1]))
   -1
+
   >>> boyer_subsequence_find(np.array([1, 2]), np.array([1]))
   0
+
   >>> boyer_subsequence_find(np.array([2, 1]), np.array([1]))
   1
+
   >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([1, 2]))
   1
+
   >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([2, 2]))
   -1
   """
@@ -2240,53 +2192,6 @@ def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
       e = seq[i + j]
 
   return -1
-
-
-@numba.njit  # type: ignore[misc]
-def _boyer_subsequence_findall_helper(seq: _NDArray, subseq: _NDArray, disjoint: bool) -> list[int]:
-  m, n = len(subseq), len(seq)
-  skip_table = np.full(subseq.max() + 1, m)
-  for i, value in enumerate(subseq[:-1]):
-    skip_table[value] = m - 1 - i
-  result = []
-
-  i = 0
-  while i + m <= n:
-    j = m - 1
-    e = e_last = seq[i + j]
-    while True:
-      if e != subseq[j]:
-        i += skip_table[e_last] if 0 <= e_last < len(skip_table) else m
-        break
-      if j == 0:
-        result.append(i)
-        i += m if disjoint else 1
-        break
-      j -= 1
-      e = seq[i + j]
-
-  return result
-
-
-def boyer_subsequence_findall(seq: _NDArray, subseq: _NDArray, disjoint: bool = False) -> list[int]:
-  """Return the indices of the locations of `subseq` in `seq`.  See `boyer_subsequence_find`.
-
-  >>> boyer_subsequence_findall(np.array([], int), np.array([1, 3]))
-  []
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([1, 3]))
-  []
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([1, 2]))
-  [1]
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1]), np.array([2, 1]))
-  [2]
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2]), np.array([1, 2]))
-  [1, 3]
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2, 1]), np.array([1, 2, 1]))
-  [1, 3]
-  >>> boyer_subsequence_findall(np.array([1, 1, 2, 1, 2, 1]), np.array([1, 2, 1]), disjoint=True)
-  [1]
-  """
-  return _boyer_subsequence_findall_helper(np.asarray(seq), np.asarray(subseq), disjoint)
 
 
 # ** General I/O
