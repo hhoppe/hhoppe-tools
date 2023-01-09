@@ -1,0 +1,50 @@
+# Useful: https://pythonpackaging.info/04-Documentation.html
+
+# Could use theme: https://github.com/sphinx-doc/sphinx/tree/master/doc/_themes/sphinx13
+
+.. autofunction:: hhoppe_tools.show
+
+.. autofunction:: hhoppe_tools.prun
+
+.. autofunction:: hhoppe_tools.as_float
+
+.. autofunction:: hhoppe_tools.grid_from_indices
+.. autofunction:: hhoppe_tools.start_timing_notebook_cells
+.. autofunction:: hhoppe_tools.show_notebook_cell_top_times
+
+.. autoclass:: hhoppe_tools.OrderedEnum
+
+.. autoclass:: hhoppe_tools.Stats
+
+
+
+
+.. toctree::
+
+    all
+    api
+
+
+
+.. autosummary::
+   :toctree: generated
+
+   hhoppe_tools
+
+
+API
+===
+
+.. autosummary::
+     :nosignatures:   # This has no effect.
+     :toctree: generated
+
+     hhoppe_tools
+
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`

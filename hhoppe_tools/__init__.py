@@ -67,8 +67,7 @@ def noop_decorator(func: _F, /) -> _F:
 
 
 @typing.overload  # Decorator with arguments.
-def noop_decorator(  # type: ignore[misc]
-    *args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:  # type: ignore[misc]
   ...
 
 
