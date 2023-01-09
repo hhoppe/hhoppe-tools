@@ -1654,10 +1654,8 @@ def grid_from_indices(
   if indices.ndim == 1:
     indices = indices[:, None]
   assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
-  i_min = (np.min(indices, axis=0) if indices_min is None else
-           np.full(indices.shape[1], indices_min))
-  i_max = (np.max(indices, axis=0) if indices_max is None else
-           np.full(indices.shape[1], indices_max))
+  i_min = np.min(indices, axis=0) if indices_min is None else np.full(indices.shape[1], indices_min)
+  i_max = np.max(indices, axis=0) if indices_max is None else np.full(indices.shape[1], indices_max)
   a_pad = np.asarray(pad)
   shape = i_max - i_min + 2 * a_pad + 1
   offset = -i_min + a_pad
