@@ -6,7 +6,7 @@ import pathlib
 
 import pdoc
 
-OUTPUT_DIRECTORY = pathlib.Path('./docs')
+OUTPUT_DIRECTORY = pathlib.Path('pdoc/html')
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
       math=True,
       search=True,
       show_source=True,
-      template_directory=pathlib.Path('./doc'),
+      # template_directory=pathlib.Path('/pdoc'),
   )
 
   pdoc.pdoc(
