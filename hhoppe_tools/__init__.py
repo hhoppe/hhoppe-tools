@@ -73,7 +73,7 @@ def noop_decorator(  # type: ignore[misc]
 
 
 def noop_decorator(*args: Any, **kwargs: Any) -> Any:
-  """Return function decorated with no-op; invokable with or without args.
+  """Return function decorated with no-operation; invokable with or without args.
 
   >>> @noop_decorator
   ... def func1(x): return x * 10
@@ -141,8 +141,9 @@ def check_eq(a: Any, b: Any, /) -> None:
   Args:
     a: First expression.
     b: Second expression.
+
   Raises:
-    RuntimeError: If a != b (or np.any(a != b) if np.ndarray).
+    RuntimeError: If `a != b` (or `np.any(a != b) if np.ndarray`).
 
   >>> check_eq('a' + 'b', 'ab')
 
@@ -157,7 +158,7 @@ def check_eq(a: Any, b: Any, /) -> None:
 
 
 def print_err(*args: str, **kwargs: Any) -> None:
-  r"""Prints arguments to stderr immediately.
+  r"""Prints arguments to `stderr` immediately.
 
   >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
   ...   print_err('hello')
@@ -171,16 +172,18 @@ def print_err(*args: str, **kwargs: Any) -> None:
 def _dump_vars(*args: Any) -> str:
   """Return a string showing the values of each expression.
 
-  Specifically, convert each expression (contributed by the caller to the variable-parameter list
-  *args) into a substring f'expression = {expression}' and join these substrings separated by ', '.
+  Specifically, convert each expression (contributed by the caller to the variable-parameter
+  list `*args`) into a substring `f'expression = {expression}'` and join these substrings
+  separated by `', '`.
 
   If the caller itself provided a variable-parameter list (*args), the search continues in its
   callers.  The approach examines a stack trace, so it is fragile and non-portable.
 
   Args:
     *args: Expressions to show.
+
   Raises:
-    Exception: If the _dump_vars(...) does not fit on a single source line.
+    RuntimeError: If the invoking `_dump_vars(...)` is not contained on a single source line.
 
   >>> a = 45
   >>> b = 'Hello'
@@ -258,6 +261,9 @@ def show(*args: Any) -> None:
 
   Args:
     *args: Expressions to show.
+
+  Raises:
+    RuntimeError: If the invoking `show(...)` is not contained on a single source line.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   show(4 * 3)
@@ -371,7 +377,7 @@ class _CellTimer:
     IPython.get_ipython().events.register('post_run_cell', self.post_run)
 
   def close(self) -> None:
-    """Destroy the _CellTimer and its notebook callbacks."""
+    """Destroy the `_CellTimer` and its notebook callbacks."""
     import IPython
     IPython.get_ipython().events.unregister('pre_run_cell', self.pre_run)
     IPython.get_ipython().events.unregister('post_run_cell', self.post_run)
@@ -432,7 +438,7 @@ def show_notebook_cell_top_times() -> None:
 
 def get_time_and_result(func: Callable[[], _T], /, *,
                         max_repeat: int = 10, max_time: float = 2.0) -> tuple[float, _T]:
-  """Call the function repeatedly to determine its minimum run time.
+  """Call function `func` repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
   by considering batches of function calls (with automatically increasing
@@ -440,14 +446,13 @@ def get_time_and_result(func: Callable[[], _T], /, *,
 
   Args:
     func: Function to time.
-    max_repeat: Maximum number of batch measurements across which to compute
-      the minimum value.
+    max_repeat: Maximum number of batch measurements across which to compute the minimum value.
     max_time: Desired maximum total time in obtaining timing measurements.
       If set to zero, a single timing measurement is taken.
 
   Returns:
-    time: The minimum time (in seconds) measured across the repeated calls to
-      `func` (divided by batch size if batches are introduced).
+    time: The minimum time (in seconds) measured across the repeated calls to `func` (divided
+      by the batch size if batches are introduced).
     result: The value returned by the last call to `func`.
 
   >>> elapsed, result = get_time_and_result(lambda: 11 + 22)
@@ -519,7 +524,7 @@ def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
 
 def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'tottime'] = 'tottime',
          top: int | None = None) -> None:
-  """Profile the function call and print reformatted statistics.
+  """Profile calling the function `func` and print reformatted statistics.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   prun(lambda: np.linalg.qr(np.ones((400, 400))))
@@ -592,14 +597,13 @@ def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'totti
 
 
 class OrderedEnum(enum.Enum):
-  """Enum supporting comparisons, sort, and max.
+  """An Enum supporting comparisons, sort, and max.
 
   >>> class MyEnum(OrderedEnum):
   ...   VALUE1 = enum.auto()
   >>> assert hash(MyEnum.VALUE1)
   >>> assert MyEnum.VALUE1 <= MyEnum.VALUE1
   """
-  # https://docs.python.org/3/library/enum.html
 
   def __ge__(self, other: OrderedEnum) -> bool:
     if self.__class__ is not other.__class__:
@@ -661,7 +665,7 @@ def temporary_assignment(variables: dict[str, Any], name: str, value: Any, /) ->
 
 
 def terse_str(cls: type, /) -> type:
-  """Decorator for a dataclasses.dataclass, which defines a custom str().
+  """Decorator for a `dataclasses.dataclass`, which defines a custom `str()`.
 
   >>> @terse_str
   ... @dataclasses.dataclass
@@ -701,7 +705,7 @@ def terse_str(cls: type, /) -> type:
 
 def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
                         **kwargs: Any) -> Callable[[_F], _F]:
-  """Like `functools.lru_cache` but memoization can ignore specified kwargs.
+  """Like `functools.lru_cache` but memoization can ignore specified `kwargs`.
 
   Because `lru_cache` is unaware of default keyword values, it is recommended that the parameters
   named in `ignore_kwargs` not have defaults in the decorated function.
@@ -802,10 +806,6 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
 def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[None]:
   """Context that reports elapsed time.
 
-  Example:
-    with timing('List comprehension example'):
-      _ = [i for i in range(10_000_000)]
-
   Args:
     description: A string to print before the elapsed time.
 
@@ -827,8 +827,8 @@ def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[
     yield
 
 
-def typename(o: Any, /) -> str:
-  """Return the full name (including module) of the type of o.
+def typename(thing: Any, /) -> str:
+  """Return the full name (including module) of the type of `thing`.
 
   >>> typename(5)
   'int'
@@ -840,8 +840,8 @@ def typename(o: Any, /) -> str:
   'numpy.ndarray'
   """
   # https://stackoverflow.com/a/2020083
-  name: str = o.__class__.__qualname__
-  module = o.__class__.__module__
+  name: str = thing.__class__.__qualname__
+  module = thing.__class__.__module__
   return name if module in (None, 'builtins') else f'{module}.{name}'
 
 
@@ -873,7 +873,7 @@ def show_biggest_vars(variables: Mapping[str, Any], /, n: int = 10) -> None:
 
 
 def format_float(value: float, /, precision: int) -> str:
-  """Return the non-scientific representation of value with specified digits of precision.
+  """Return the non-scientific representation of `value` with specified `precision` digits.
 
   >>> format_float(1234, 3)
   '1230'
@@ -899,10 +899,10 @@ def format_float(value: float, /, precision: int) -> str:
 
 
 def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
-  r"""Like `re.search(...).groups()` but with assertion that a match is found.
+  r"""Like `re.search(...).groups()` but with an assertion that a match is found.
 
   Args:
-    pattern: A regular expression.  It may include a prefix '^' or suffix '$' to constrain
+    pattern: A regular expression.  It may include a prefix `'^'` or suffix `'$'` to constrain
       the search location.
     string: Text to search.
 
@@ -929,14 +929,14 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
 
 
 def as_float(a: _ArrayLike, /) -> _NDArray:
-  """Convert non-floating-point array to floating-point type.
+  """If `a` is not floating-point, convert it to floating-point type.
 
   Args:
     a: Input array.
 
   Returns:
-    Array 'a' if it is already floating-point (np.float32 or np.float64), else 'a' converted to
-    type np.float32 or np.float64 based on the necessary precision.  Note that 64-bit integers
+    Array `a` if it is already floating-point (`np.float32` or `np.float64`), else `a` converted to
+    type `np.float32` or `np.float64` based on the necessary precision.  Note that 64-bit integers
     cannot be represented exactly.
 
   >>> as_float(np.array([1.0, 2.0]))
@@ -965,7 +965,7 @@ def as_float(a: _ArrayLike, /) -> _NDArray:
 
 
 def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
-  """Return array 'a' scaled such that its elements have unit 2-norm.
+  """Return array `a` scaled such that its elements have unit 2-norm.
 
   Args:
     a: Input array.
@@ -973,7 +973,7 @@ def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
       element along the specified axis.
 
   Returns:
-    An array such that its elements along 'axis' are rescaled to have L2 norm
+    An array such that its elements along `axis` are rescaled to have L2 norm
     equal to 1.  Any element with zero norm is replaced by nan values.
 
   >>> normalize(np.array([10, 10, 0]))
@@ -990,6 +990,10 @@ def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   >>> normalize([[0, 10], [10, 10]])
   array([[0.        , 0.57735027],
          [0.57735027, 0.57735027]])
+
+  >>> normalize([[0, 0], [10, 10]], axis=-1)
+  array([[       nan,        nan],
+         [0.70710678, 0.70710678]])
   """
   a = np.asarray(a)
   norm = np.linalg.norm(a, axis=axis)
@@ -1021,7 +1025,7 @@ def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
 
 
 def prime_factors(n: int, /) -> list[int]:
-  """Return an ascending list of the (greather-than-one) prime factors of n.
+  """Return an ascending list of the (greather-than-one) prime factors of `n`.
 
   >>> prime_factors(1)
   []
@@ -1048,10 +1052,10 @@ def prime_factors(n: int, /) -> list[int]:
 
 
 def diagnostic(a: _ArrayLike, /) -> str:
-  """Return a diagnostic string summarizing the values in 'a' for debugging.
+  """Return a diagnostic string summarizing the values in `a` for debugging.
 
   Args:
-    a: Input values; must be convertible to an np.ndarray of scalars.
+    a: Input values; must be convertible to an `np.ndarray` of scalars.
 
   Returns:
     A string summarizing the different types of arithmetic values.
@@ -1205,7 +1209,7 @@ class Stats:
             max(self._sum2 - self._sum**2 / self._size, 0))
 
   def var(self) -> float:
-    """Return the unbiased estimate of variance, as in np.var(a, ddof=1).
+    """Return the unbiased estimate of variance, as in `np.var(a, ddof=1)`.
 
     >>> Stats([1, 1, 4]).var()
     3.0
@@ -1215,7 +1219,7 @@ class Stats:
             self.ssd() / (self._size - 1))
 
   def sdv(self) -> float:
-    """Return the unbiased standard deviation as in np.std(a, ddof=1).
+    """Return the unbiased standard deviation as in `np.std(a, ddof=1)`.
 
     >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
@@ -1236,7 +1240,7 @@ class Stats:
     return (self._sum2 / self._size)**0.5
 
   def __format__(self, format_spec: str = '') -> str:
-    """Return a summary of the statistics (size, min, max, avg, sdv)."""
+    """Return a summary of the statistics `(size, min, max, avg, sdv)`."""
     fmt = format_spec if format_spec else '#12.6'
     fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
     fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
@@ -1281,7 +1285,7 @@ class Stats:
                  min(self._min, other._min), max(self._max, other._max))
 
   def __mul__(self, n: int) -> Stats:
-    """Return statistics whereby each element appears 'n' times.
+    """Return statistics whereby each element appears `n` times.
 
     >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
     True
@@ -1294,7 +1298,7 @@ class Stats:
 
 
 def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
-  """Return a numpy array even if a is an iterator of subarrays.
+  """Return a numpy array even if `a` is an iterator of subarrays.
 
   >>> array_always(np.array([[1, 2], [3, 4]]))
   array([[1, 2],
@@ -1314,7 +1318,7 @@ def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
 
 
 def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _NDArray:
-  """Return array padded along initial dimensions like np.pad(), but where `value` may be an array.
+  """Return `array` padded along initial dimensions by `value`, which may be an array.
 
   Args:
     array: Input data.
@@ -1382,7 +1386,7 @@ def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _
 
 
 def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
-  """Return the tuple of slices that bound the nonzero elements of array.
+  """Return the tuple of slices that bound the nonzero elements of array `a`.
 
   >>> bounding_slices(())
   (slice(0, 0, None),)
@@ -1471,7 +1475,7 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
 
 def _np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
                     dtype: _DTypeLike = None) -> _NDArray:
-  """Return array of integers by mapping from array of characters.
+  """Return array of integers created by mapping from an array `a` of characters.
 
   >>> _np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
   array([0, 1, 2, 0, 1])
@@ -1487,13 +1491,13 @@ def _np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
 
 def grid_from_string(string: str, /, int_from_ch: Mapping[str, int] | None = None,
                      dtype: _DTypeLike = None) -> _NDArray:
-  r"""Return a 2D array created from a multiline string.
+  r"""Return a 2D array created from a multiline `string`.
 
   Args:
-    string: Nonempty lines correspond to the rows of the grid, with one chr per grid element.
-    int_from_ch: Mapping from the chr in string to integers in the resulting grid; if None,
-      the grid contains chr elements (dtype='<U1').
-    dtype: Integer element type for the result of int_from_ch.
+    string: Nonempty lines correspond to the rows of the grid, with one `ch` per grid element.
+    int_from_ch: Mapping from the `ch` in string to integers in the resulting grid; if None,
+      the grid contains chr elements (`dtype='<U1'`).
+    dtype: Integer element type for the result of `int_from_ch`.
 
   >>> string = '..B\nB.A\n'
   >>> g = grid_from_string(string)
@@ -1527,11 +1531,11 @@ def grid_from_string(string: str, /, int_from_ch: Mapping[str, int] | None = Non
 
 
 def string_from_grid(grid: _ArrayLike, /, ch_from_int: Mapping[int, str] | None = None) -> str:
-  r"""Return a multiline string created from a 2D array.
+  r"""Return a multiline string created from a 2D array `grid`.
 
   Args:
-    grid: 2D array-like data containing either chr or integers.
-    ch_from_int: Mapping from each integer in grid to the chr in the resulting string; if None,
+    grid: 2D array-like data containing either ch or integers.
+    ch_from_int: Mapping from each integer in `grid` to the ch in the resulting string; if None,
       the grid must contain str or byte elements.
 
   >>> string_from_grid([[0, 1], [0, 0]], {0: '.', 1: '#'})
@@ -1568,30 +1572,31 @@ def grid_from_indices(
     pad: int | Sequence[int] = 0,
     dtype: _DTypeLike = None,
 ) -> _NDArray:
-  r"""Return an array from (sparse) indices or from a map {index: value}.
+  r"""Return an `array` from (sparse) indices or from a map {index: value}.
 
   Indices are sequences of integers with some length D, which determines the dimensionality of
-  the output array.  The array shape is computed by bounding the range of index coordinates in
-  each dimension (which may be overriden by 'indices_min' and 'indices_max') and is adjusted
-  by the 'pad' parameter.
+  the output `array`.  The array shape is computed by bounding the range of index coordinates in
+  each dimension (which may be overriden by `indices_min` and `indices_max`) and is adjusted
+  by the `pad` parameter.
 
   Args:
     iterable_or_map: Iterable of indices or a mapping from indices to values.
-    background: Value assigned to the array elements not in 'iterable_or_map'.
-    foreground: If 'iterable_or_map' is an iterable, the array value assigned to its indices.
+    background: Value assigned to the array elements not in `iterable_or_map`.
+    foreground: If `iterable_or_map` is an iterable, the array value assigned to its indices.
     indices_min: For each dimension, the index coordinate that gets mapped to coordinate zero in
       the array.  Replicated if an integer.
     indices_max: For each dimension, the index coordinate that gets mapped to the last coordinate
       in the array.  Replicated if an integer.
-    pad: For each dimension d, number of additional slices of 'background' values before and after
-      the range [indices_min[d], indices_max[d]].
+    pad: For each dimension d, number of additional slices of `background` values before and after
+      the range `[indices_min[d], indices_max[d]]`.
     dtype: Data type of the output array.
 
   Returns:
-    A D-dimensional numpy array initialized with the value 'background' and then sparsely assigned
-    the elements in the parameter 'iterable_or_map' (using 'foreground' value if an iterable, or
-    the map values if a map).  By default, array spans a tight bounding box of the indices, but
-    these bounds can be overridden using 'indices_min', 'indices_max', and 'pad'.
+    array: A D-dimensional numpy array initialized with the value `background` and then sparsely
+      assigned the elements in the parameter `iterable_or_map` (using `foreground` value if
+      an iterable, or the map values if a map).  By default, `array` spans a tight bounding box
+      of the indices, but these bounds can be overridden by using `indices_min`, `indices_max`,
+      and `pad`.
 
   >>> l = [(-1, -2), (-1, 1), (1, 0)]
   >>> grid_from_indices(l)
@@ -1672,7 +1677,7 @@ def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
                       background: Any, *,
                       cmap: Mapping[Any, tuple[int, int, int]],
                       pad: int | Sequence[int] = 0) -> _NDArray:
-  """Return image from mapping {yx: value} and cmap = {value: rgb}.
+  """Return image from mapping `{yx: value}` and `cmap = {value: rgb}`.
 
   >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
   >>> cmap = {'A': (100, 1, 2), 'B': (3, 200, 4), ' ': (235, 235, 235)}
@@ -1686,24 +1691,23 @@ def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
           [  3, 200,   4]]], dtype=uint8)
   """
   array = grid_from_indices(map_yx_value, background=background, pad=pad)
-  image = np.array(
-      [cmap[e] for e in array.flat], np.uint8).reshape(*array.shape, 3)
+  image = np.array([cmap[e] for e in array.flat], np.uint8).reshape(*array.shape, 3)
   return image
 
 
 def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
-  """Given 'shape' with one optional -1 dimension, make it fit 'num' elements.
+  """Given `shape` with one optional -1 dimension, make it fit `num` elements.
 
   Args:
     shape: Input dimensions.  These must be positive, except that one dimension may be -1 to
       indicate that it should be computed.  If all dimensions are positive, these must satisfy
-      math.prod(shape) >= num.
+      `math.prod(shape) >= num`.
     num: Number of elements to fit into the output shape.
 
   Returns:
-    The original 'shape' if all its dimensions are positive.  Otherwise, a new_shape where the
+    The original `shape` if all its dimensions are positive.  Otherwise, a new_shape where the
     unique dimension with value -1 is replaced by the smallest number such that
-    math.prod(new_shape) >= num.
+    `math.prod(new_shape) >= num`.
 
   >>> _fit_shape((3, 4), 10)
   (3, 4)
@@ -1744,25 +1748,26 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
   Args:
     arrays: Sequence of input arrays with the same data type and rank.  The arrays must have the
-      same trailing dimensions arrays[].shape[len(shape):].  The leading dimensions
-      arrays[].shape[:len(shape)] may be different and these are packed together as a grid to form
-      output.shape[:len(shape)].
+      same trailing dimensions `arrays[].shape[len(shape):]`.  The leading dimensions
+      `arrays[].shape[:len(shape)]` may be different and these are packed together as a grid to
+      form `output.shape[:len(shape)]`.
     shape: Dimensions of the grid used to unravel the arrays before packing. The dimensions must
-      be positive, with prod(shape) >= len(arrays).  One dimension of shape may be -1, in which
-      case it is computed automatically as the smallest value such that prod(shape) >= len(arrays).
+      be positive, with `prod(shape) >= len(arrays)`.  One dimension of shape may be -1, in which
+      case it is computed automatically as the smallest value such that
+      `prod(shape) >= len(arrays)`.
     background: Broadcastable value used for the unassigned elements of the output array.
-    align: Relative position ('center', 'start', or 'stop') for each input array and for each axis
-      within its output grid cell.  The value must be broadcastable onto the shape
-      [len(arrays), len(shape)].
-    spacing: Extra space between grid elements.  The value may be specified per-axis, i.e., it must
-      be broadcastable onto the shape [len(shape)].
-    round_to_even: If True, ensure that the final output dimension of each axis is even.  The value
-      must be broadcastable onto the shape [len(shape)].
+    align: Relative position (`'center'`, `'start'`, or `'stop'`) for each input array and for
+      each axis within its output grid cell.  The value must be broadcastable onto the shape
+      `[len(arrays), len(shape)]`.
+    spacing: Extra space between grid elements.  The value may be specified per-axis, i.e.,
+      it must be broadcastable onto the shape `[len(shape)]`.
+    round_to_even: If True, ensure that the final output dimension of each axis is even.  The
+      value must be broadcastable onto the shape `[len(shape)]`.
 
   Returns:
     A numpy output array of the same type as the input 'arrays', with
-    output.shape = packed_shape + arrays[0].shape[len(shape):], where packed_shape is obtained by
-    packing arrays[:].shape[:len(shape)] into a grid of the specified 'shape'.
+    `output.shape = packed_shape + arrays[0].shape[len(shape):]`, where `packed_shape` is
+    obtained by packing `arrays[:].shape[:len(shape)]` into a grid of the specified `shape`.
 
   >>> assemble_arrays(
   ...    [np.array([[1, 2, 3]]), np.array([[5], [6]]), np.array([[7]]),
@@ -1816,7 +1821,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   output_array = np.full(output_shape, background, arrays[0].dtype)
 
   def offset(length: int, size: int, align: str) -> int:
-    """Return an offset to align element of given size within cell of length."""
+    """Return an offset to align element of given `size` within cell of `length`."""
     remainder = length - size
     if align not in ('start', 'stop', 'center'):
       raise ValueError(f'Alignment {align} is not recognized.')
@@ -1839,7 +1844,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
 
 
 def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike = 0) -> _NDArray:
-  """Return a copy of the array shifted by offset, with fill using constant.
+  """Return a copy of the `array` shifted by `offset`, with fill using `constant_values`.
 
   >>> array = np.arange(1, 13).reshape(3, 4)
 
@@ -1873,7 +1878,7 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
 
 @numba.njit  # type: ignore[misc]
 def array_index(array: _NDArray, item: Any) -> int:
-  """Return the index in `array` of the first element equal to `item`, or -1.
+  """Return the index in `array` of the first element equal to `item`, or -1 if absent.
 
   See https://stackoverflow.com/a/41578614/1190077
 
@@ -1937,12 +1942,12 @@ def rasterized_text(
     background: RGB background color of created image.  Scalar indicates gray value.
     foreground: RGB color rasterized text.  Scalar indicates gray value.
     fontsize: Size of rasterized font.
-    fontname: Name of font compatible with `PIL.ImageFont.truetype()`, e.g., 'cmr10'.
+    fontname: Name of font compatible with `PIL.ImageFont.truetype()`, e.g., `'cmr10'`.
     spacing: Number of pixels between lines in multiline text.
     align: Horizontal alignment of multiline text.
-    shape: Dimensions (height, width) for rasterized text image, prior to addition of margin.
-      Any extra Space is added at the right and below the text.  If None, dimensions are
-      determined automatically based on rasterized content.  An explicit shape is useful to
+    shape: Dimensions (height, width) for rasterized text image, prior to addition of `margin`.
+      Any extra Space is added at the right and below the text.  If None, the dimensions are
+      determined automatically based on the rasterized content.  An explicit shape is useful to
       avoid jitter in video animations.
     margin: Number of pixels around the rasterized text, in the format of `hh.pad_array`.
 
@@ -1978,7 +1983,7 @@ def rasterized_text(
 
 
 def overlay_text(image: _NDArray, yx: tuple[int, int], text: str, **kwargs: Any) -> None:
-  """Modifies `image` by overlaying rasterized text."""
+  """Modifies `image` by overlaying rasterized `text` at position `yx`."""
   assert image.ndim == 3 and image.dtype == np.uint8
   assert len(yx) == 2
   image2 = rasterized_text(text, **kwargs)
@@ -1990,9 +1995,9 @@ def overlay_text(image: _NDArray, yx: tuple[int, int], text: str, **kwargs: Any)
 
 
 class UnionFind(Generic[_T]):
-  """Union-find is an efficient technique for tracking equivalence classes as
-  pairs of elements are incrementally unified into the same class.  See
-  https://en.wikipedia.org/wiki/Disjoint-set_data_structure .
+  """An efficient representation for tracking equivalence classes as elements are unified.
+
+  See https://en.wikipedia.org/wiki/Disjoint-set_data_structure .
   The implementation uses path compression but without weight-balancing, so the
   worst case time complexity is O(n*log(n)), but the average case is O(n).
 
@@ -2021,7 +2026,7 @@ class UnionFind(Generic[_T]):
     self._rep: dict[_T, _T] = {}
 
   def union(self, a: _T, b: _T, /) -> None:
-    """Merge the equivalence class of b into that of a.
+    """Merge the equivalence class of `b` into that of `a`.
 
     >>> union_find = UnionFind[int]()
     >>> union_find.union(1, 2)
@@ -2031,7 +2036,7 @@ class UnionFind(Generic[_T]):
     self._rep[rep_b] = rep_a
 
   def same(self, a: _T, b: _T, /) -> bool:
-    """Return whether a and b are in the same equivalence class.
+    """Return whether `a` and `b` are in the same equivalence class.
 
     >>> union_find = UnionFind[int]()
     >>> assert not union_find.same((1, 2), (2, 3))
@@ -2043,7 +2048,7 @@ class UnionFind(Generic[_T]):
     return result
 
   def find(self, a: _T, /) -> _T:
-    """Return a representative for the class of a; valid until next union().
+    """Return a representative for the class of `a`; valid until the next `union()` operation.
 
     >>> union_find = UnionFind[str]()
     >>> union_find.union('a', 'b')
@@ -2070,7 +2075,7 @@ class UnionFind(Generic[_T]):
 
 def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool = False) -> list[_T]:
   """Given a dag (directed acyclic graph), return a list of graph nodes such that for every
-  directed edge (u, v) in the graph, u is before v in the list.
+  directed edge `(u, v)` in the graph, `u` is before `v` in the list.
   See https://en.wikipedia.org/wiki/Topological_sorting and https://stackoverflow.com/a/47234034 .
 
   >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
@@ -2115,9 +2120,9 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool =
 
 def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
                            y_desired: float, /) -> int:
-  """Return x such that feval(x) <= y_desired < feval(x + 1).
+  """Return `x` such that `feval(x) <= y_desired < feval(x + 1)`.
 
-  Parameters must satisfy xl < xh and feval(xl) <= y_desired < feval(xh).
+  Parameters must satisfy `xl < xh` and `feval(xl) <= y_desired < feval(xh)`.
 
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 15)
   3
@@ -2198,7 +2203,7 @@ def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
 
 
 def is_executable(path: _Path, /) -> bool:
-  """Check if a file is executable.
+  """Return True if the file `path` is executable.
 
   >>> import tempfile
   >>> with tempfile.TemporaryDirectory() as dir:
@@ -2217,7 +2222,7 @@ def is_executable(path: _Path, /) -> bool:
 
 
 def run(args: str | Sequence[str], /) -> None:
-  """Execute command, printing output from stdout and stderr.
+  """Execute the command `args`, printing to stdout its combined output from stdout and stderr.
 
   Args:
     args: Command to execute, which can be either a string or a sequence of word strings, as in
