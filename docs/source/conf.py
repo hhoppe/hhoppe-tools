@@ -14,7 +14,7 @@ author = 'Hugues Hoppe'
 
 extensions = [
     'sphinx.ext.napoleon',  # Recognize numpy and Google docstring styles.
-    'sphinx.ext.autodoc',   # Support autofunction, autoclass, etc from docstrings.
+    'sphinx.ext.autodoc',  # Support autofunction, autoclass, etc from docstrings.
     'sphinx.ext.viewcode',  # Add links to source code.
     'sphinx.ext.autosummary',  # Generate all autodoc directives automatically.
     # 'nbsphinx',             # Embed ipynb notebooks in the doc; requires "pip install nbsphinx".

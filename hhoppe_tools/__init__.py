@@ -61,6 +61,7 @@ _Path = Union[str, os.PathLike]
 
 # ** numba
 
+
 @typing.overload  # Bare decorator.
 def noop_decorator(func: _F, /) -> _F:
   ...
@@ -229,7 +230,7 @@ def _dump_vars(*args: Any) -> str:
       raise Exception(f'_dump_vars: cannot find "{prefix}" in line "{text}"')
     begin += len(this_function_name)
     end = begin + matching_parenthesis(text[begin:])
-    parameter_string = text[begin + 1:end].strip()
+    parameter_string = text[begin + 1 : end].strip()
     if re.fullmatch(r'\*[\w]+', parameter_string):
       this_function_name = function_name
       # Because the call is made using a *args, we continue to
@@ -303,8 +304,10 @@ def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
     hit_ratio = info.hits / (info.hits + info.misses + 1e-30)
     s_max_size = 'inf' if info.maxsize is None else f'{info.maxsize:_}'
     name2 = f'{name:31}' if len(name) <= 31 else f'{name[:15]}..{name[-14:]}'
-    print(f'# {name2} {info.currsize:11_}/{s_max_size:<10}'
-          f' {hit_ratio:5.3f} hit={info.hits:13_} miss={info.misses:13_}')
+    print(
+        f'# {name2} {info.currsize:11_}/{s_max_size:<10}'
+        f' {hit_ratio:5.3f} hit={info.hits:13_} miss={info.misses:13_}'
+    )
 
 
 def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) -> None:
@@ -343,6 +346,7 @@ def in_colab() -> bool:
   """
   try:
     import google.colab  # pylint: disable=unused-import # noqa
+
     return True
   except ModuleNotFoundError:
     return False
@@ -351,6 +355,7 @@ def in_colab() -> bool:
 def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
+
   IPython.display.display(IPython.display.HTML(text))
 
 
@@ -364,12 +369,14 @@ def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
 
 class _CellTimer:
   """Record timings of all notebook cells and show top entries at the end."""
+
   # Inspired from https://github.com/cpcloud/ipython-autotime.
 
   instance: _CellTimer | None = None
 
   def __init__(self) -> None:
     import IPython
+
     self.elapsed_times: dict[int, float] = {}
     self.pre_run(None)
     IPython.get_ipython().events.register('pre_run_cell', self.pre_run)
@@ -378,6 +385,7 @@ class _CellTimer:
   def close(self) -> None:
     """Destroy the `_CellTimer` and its notebook callbacks."""
     import IPython
+
     IPython.get_ipython().events.unregister('pre_run_cell', self.pre_run)
     IPython.get_ipython().events.unregister('post_run_cell', self.post_run)
 
@@ -388,6 +396,7 @@ class _CellTimer:
   def post_run(self, unused_result: Any) -> None:
     """Start the timer for the notebook cell execution."""
     import IPython
+
     elapsed_time = time.monotonic() - self.start_time
     input_index = IPython.get_ipython().execution_count - 1
     self.elapsed_times[input_index] = elapsed_time
@@ -395,6 +404,7 @@ class _CellTimer:
   def show_times(self, n: int | None = None, sort: bool = False) -> None:
     """Print notebook cell timings."""
     import IPython
+
     print(f'# Total time: {sum(self.elapsed_times.values()):.2f} s')
     times = list(self.elapsed_times.items())
     times = sorted(times, key=lambda x: x[sort], reverse=sort)
@@ -417,6 +427,7 @@ def start_timing_notebook_cells() -> None:
   Place in an early notebook cell.  See also `show_notebook_cell_top_times`.
   """
   import IPython
+
   if IPython.get_ipython():
     if _CellTimer.instance:
       _CellTimer.instance.close()
@@ -435,8 +446,9 @@ def show_notebook_cell_top_times() -> None:
 # ** Timing
 
 
-def get_time_and_result(func: Callable[[], _T], /, *,
-                        max_repeat: int = 10, max_time: float = 2.0) -> tuple[float, _T]:
+def get_time_and_result(
+    func: Callable[[], _T], /, *, max_repeat: int = 10, max_time: float = 2.0
+) -> tuple[float, _T]:
   """Call function `func` repeatedly to determine its minimum run time.
 
   If the measured run time is small, more precise time estimates are obtained
@@ -511,18 +523,28 @@ def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
   """
   min_time = get_time(func, **kwargs)
   # print(f'{min_time:.3f} s', flush=True)
-  text = (f'{format_float(min_time, 3)} s' if min_time >= 1.0 else
-          f'{format_float(min_time*1e3, 3)} ms' if min_time > 1.0 / 1e3 else
-          f'{format_float(min_time*1e6, 3)} µs' if min_time > 1.0 / 1e6 else
-          f'{format_float(min_time*1e6, 2)} µs')
+  text = (
+      f'{format_float(min_time, 3)} s'
+      if min_time >= 1.0
+      else f'{format_float(min_time*1e3, 3)} ms'
+      if min_time > 1.0 / 1e3
+      else f'{format_float(min_time*1e6, 3)} µs'
+      if min_time > 1.0 / 1e6
+      else f'{format_float(min_time*1e6, 2)} µs'
+  )
   print(text, flush=True)
 
 
 # ** Profiling
 
 
-def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'tottime'] = 'tottime',
-         top: int | None = None) -> None:
+def prun(
+    func: Callable[[], Any],
+    /,
+    *,
+    mode: Literal['original', 'full', 'tottime'] = 'tottime',
+    top: int | None = None,
+) -> None:
   """Profile calling the function `func` and print reformatted statistics.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
@@ -545,8 +567,7 @@ def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'totti
 
   with io.StringIO() as string_io:
     args = (top,) if top is not None else ()
-    pstats.Stats(profile, stream=string_io).sort_stats(
-        'tottime').print_stats(*args)
+    pstats.Stats(profile, stream=string_io).sort_stats('tottime').print_stats(*args)
     lines = string_io.getvalue().strip('\n').splitlines()
 
   if mode == 'original':
@@ -574,8 +595,7 @@ def prun(func: Callable[[], Any], /, *, mode: Literal['original', 'full', 'totti
       tottime, cumtime = float(tottime_str), float(cumtime_str)
       beautified_name = beautify_function_name(name)
       overall_time += 1e-6
-      significant_time = (tottime / overall_time > 0.05 or
-                          0.05 < cumtime / overall_time < 0.95)
+      significant_time = tottime / overall_time > 0.05 or 0.05 < cumtime / overall_time < 0.95
       if top is not None or significant_time:
         if mode == 'tottime':
           output.append(f'     {tottime:8.3f} {cumtime:8.3f} {beautified_name}')
@@ -690,9 +710,11 @@ def terse_str(cls: type, /) -> type:
 
   def __str__(self: Any) -> str:
     """Return a string containing only the non-default field values."""
-    text = ', '.join(f'{name}={getattr(self, name)!r}'
-                     for name, default in default_for_field.items()
-                     if getattr(self, name) != default)
+    text = ', '.join(
+        f'{name}={getattr(self, name)!r}'
+        for name, default in default_for_field.items()
+        if getattr(self, name) != default
+    )
     return f'{type(self).__name__}({text})'
 
   setattr(cls, '__str__', __str__)
@@ -702,8 +724,9 @@ def terse_str(cls: type, /) -> type:
 # ** Memoization
 
 
-def selective_lru_cache(*args: Any, ignore_kwargs: tuple[str, ...] = (),
-                        **kwargs: Any) -> Callable[[_F], _F]:
+def selective_lru_cache(
+    *args: Any, ignore_kwargs: tuple[str, ...] = (), **kwargs: Any
+) -> Callable[[_F], _F]:
   """Like `functools.lru_cache` but memoization can ignore specified `kwargs`.
 
   Because `lru_cache` is unaware of default keyword values, it is recommended that the parameters
@@ -861,8 +884,7 @@ def show_biggest_vars(variables: Mapping[str, Any], /, n: int = 10) -> None:
   i                        int                  ...
   """
   var = variables
-  infos = [(name, sys.getsizeof(value), typename(value))
-           for name, value in var.items()]
+  infos = [(name, sys.getsizeof(value), typename(value)) for name, value in var.items()]
   infos.sort(key=lambda t: t[1], reverse=True)
   for name, size, vartype in infos[:n]:
     print(f'{name:24} {vartype:20} {size:_}')
@@ -892,8 +914,7 @@ def format_float(value: float, /, precision: int) -> str:
   >>> format_float(120, 3)
   '120'
   """
-  text = np.format_float_positional(
-      value, fractional=False, unique=False, precision=precision)
+  text = np.format_float_positional(value, fractional=False, unique=False, precision=precision)
   return text.rstrip('.')
 
 
@@ -1070,12 +1091,14 @@ def diagnostic(a: _ArrayLike, /) -> str:
   if dtype == bool:
     a = a.astype(np.uint8)
   finite = a[np.isfinite(a)]
-  return (f'shape={a.shape} {dtype=!s} size={a.size}'
-          f' nan={np.isnan(a).sum()}'
-          f' posinf={np.isposinf(a).sum()}'
-          f' neginf={np.isneginf(a).sum()}'
-          f' finite{repr(Stats(finite))[10:]}'
-          f' zero={(finite == 0).sum()}')
+  return (
+      f'shape={a.shape} {dtype=!s} size={a.size}'
+      f' nan={np.isnan(a).sum()}'
+      f' posinf={np.isposinf(a).sum()}'
+      f' neginf={np.isneginf(a).sum()}'
+      f' finite{repr(Stats(finite))[10:]}'
+      f' zero={(finite == 0).sum()}'
+  )
 
 
 # ** Statistics
@@ -1204,8 +1227,7 @@ class Stats:
     >>> Stats([1, 1, 4]).ssd()
     6.0
     """
-    return (math.nan if self._size == 0 else
-            max(self._sum2 - self._sum**2 / self._size, 0))
+    return math.nan if self._size == 0 else max(self._sum2 - self._sum**2 / self._size, 0)
 
   def var(self) -> float:
     """Return the unbiased estimate of variance, as in `np.var(a, ddof=1)`.
@@ -1213,9 +1235,9 @@ class Stats:
     >>> Stats([1, 1, 4]).var()
     3.0
     """
-    return (math.nan if self._size == 0 else
-            0.0 if self._size == 1 else
-            self.ssd() / (self._size - 1))
+    return (
+        math.nan if self._size == 0 else 0.0 if self._size == 1 else self.ssd() / (self._size - 1)
+    )
 
   def sdv(self) -> float:
     """Return the unbiased standard deviation as in `np.std(a, ddof=1)`.
@@ -1223,7 +1245,7 @@ class Stats:
     >>> Stats([1, 1, 4]).sdv()
     1.7320508075688772
     """
-    return self.var()**0.5
+    return self.var() ** 0.5
 
   def rms(self) -> float:
     """Return the root-mean-square.
@@ -1236,19 +1258,21 @@ class Stats:
     """
     if self._size == 0:
       return 0.0
-    return (self._sum2 / self._size)**0.5
+    return (self._sum2 / self._size) ** 0.5
 
   def __format__(self, format_spec: str = '') -> str:
     """Return a summary of the statistics `(size, min, max, avg, sdv)`."""
     fmt = format_spec if format_spec else '#12.6'
-    fmt_int = fmt[:fmt.find('.')] if fmt.find('.') >= 0 else ''
+    fmt_int = fmt[: fmt.find('.')] if fmt.find('.') >= 0 else ''
     fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
     fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
-    return (f'({self._size:11_})'
-            f' {self._min:{fmt_min}} :'
-            f' {self._max:<{fmt_max}}'
-            f' av={self.avg():<{fmt}}'
-            f' sd={self.sdv():<{fmt}}').rstrip()
+    return (
+        f'({self._size:11_})'
+        f' {self._min:{fmt_min}} :'
+        f' {self._max:<{fmt_max}}'
+        f' av={self.avg():<{fmt}}'
+        f' sd={self.sdv():<{fmt}}'
+    ).rstrip()
 
   def __str__(self) -> str:
     return self.__format__()
@@ -1258,11 +1282,13 @@ class Stats:
     fmt_int = ''
     fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
     fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
-    return (f'Stats(size={self._size}, '
-            f'min={self._min:{fmt_min}}, '
-            f'max={self._max:{fmt_max}}, '
-            f'avg={self.avg():{fmt}}, '
-            f'sdv={self.sdv():{fmt}})')
+    return (
+        f'Stats(size={self._size}, '
+        f'min={self._min:{fmt_min}}, '
+        f'max={self._max:{fmt_max}}, '
+        f'avg={self.avg():{fmt}}, '
+        f'sdv={self.sdv():{fmt}})'
+    )
 
   def __len__(self) -> int:
     return self._size
@@ -1270,9 +1296,13 @@ class Stats:
   def __eq__(self, other: object) -> bool:
     if not isinstance(other, Stats):
       return NotImplemented
-    return (self._size == other._size and self._sum == other._sum and
-            self._sum2 == other._sum2 and self._min == other._min and
-            self._max == other._max)
+    return (
+        self._size == other._size
+        and self._sum == other._sum
+        and self._sum2 == other._sum2
+        and self._min == other._min
+        and self._max == other._max
+    )
 
   def __add__(self, other: Stats) -> Stats:
     """Return combined statistics.
@@ -1280,8 +1310,13 @@ class Stats:
     >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
     True
     """
-    return Stats(self._size + other._size, self._sum + other._sum, self._sum2 + other._sum2,
-                 min(self._min, other._min), max(self._max, other._max))
+    return Stats(
+        self._size + other._size,
+        self._sum + other._sum,
+        self._sum2 + other._sum2,
+        min(self._min, other._min),
+        max(self._max, other._max),
+    )
 
   def __mul__(self, n: int) -> Stats:
     """Return statistics whereby each element appears `n` times.
@@ -1289,8 +1324,7 @@ class Stats:
     >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
     True
     """
-    return Stats(
-        self._size * n, self._sum * n, self._sum2 * n, self._min, self._max)
+    return Stats(self._size * n, self._sum * n, self._sum2 * n, self._min, self._max)
 
 
 # ** Numpy operations
@@ -1376,9 +1410,9 @@ def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _
   array, pad, value = np.asarray(array), np.asarray(pad), np.asarray(value)
   if pad.ndim == 0:
     pad = np.broadcast_to(pad, (array.ndim - value.ndim, 2))
-  check_eq(value.shape, array.shape[len(pad):])
-  cval = np.array([[value, value]] * len(pad) + [[0, 0]] * (array.ndim - len(pad)),
-                  dtype=object)  # Create a ragged array, so use dtype=object.
+  check_eq(value.shape, array.shape[len(pad) :])
+  # Create a ragged array, so use dtype=object.
+  cval = np.array([[value, value]] * len(pad) + [[0, 0]] * (array.ndim - len(pad)), dtype=object)
   if len(pad) < array.ndim:
     pad = np.concatenate([pad, [[0, 0]] * (array.ndim - len(pad))])
   return np.pad(array, pad, constant_values=cval)
@@ -1417,7 +1451,7 @@ def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   slices = []
   for dim in range(a.ndim):
     line = a.any(axis=tuple(i for i in range(a.ndim) if i != dim))
-    indices, = line.nonzero()
+    (indices,) = line.nonzero()
     if indices.size:
       vmin, vmax = indices[[0, -1]]
       slices.append(slice(vmin, vmax + 1))
@@ -1472,8 +1506,9 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
   return pad_array(array, margin, value)
 
 
-def _np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
-                    dtype: _DTypeLike = None) -> _NDArray:
+def _np_int_from_ch(
+    a: _ArrayLike, /, int_from_ch: Mapping[str, int], dtype: _DTypeLike = None
+) -> _NDArray:
   """Return array of integers created by mapping from an array `a` of characters.
 
   >>> _np_int_from_ch(np.array(list('abcab')), {'a': 0, 'b': 1, 'c': 2})
@@ -1488,8 +1523,9 @@ def _np_int_from_ch(a: _ArrayLike, /, int_from_ch: Mapping[str, int],
   return lookup[a]
 
 
-def grid_from_string(string: str, /, int_from_ch: Mapping[str, int] | None = None,
-                     dtype: _DTypeLike = None) -> _NDArray:
+def grid_from_string(
+    string: str, /, int_from_ch: Mapping[str, int] | None = None, dtype: _DTypeLike = None
+) -> _NDArray:
   r"""Return a 2D array created from a multiline `string`.
 
   Args:
@@ -1563,7 +1599,8 @@ def string_from_grid(grid: _ArrayLike, /, ch_from_int: Mapping[int, str] | None 
 
 def grid_from_indices(
     iterable_or_map: Iterable[Sequence[int]] | Mapping[Sequence[int], Any],
-    /, *,
+    /,
+    *,
     background: Any = 0,
     foreground: Any = 1,
     indices_min: int | Sequence[int] | None = None,
@@ -1670,10 +1707,14 @@ def grid_from_indices(
   return grid
 
 
-def image_from_yx_map(map_yx_value: Mapping[tuple[int, int], Any], /,
-                      background: Any, *,
-                      cmap: Mapping[Any, tuple[int, int, int]],
-                      pad: int | Sequence[int] = 0) -> _NDArray:
+def image_from_yx_map(
+    map_yx_value: Mapping[tuple[int, int], Any],
+    /,
+    background: Any,
+    *,
+    cmap: Mapping[Any, tuple[int, int, int]],
+    pad: int | Sequence[int] = 0,
+) -> _NDArray:
   """Return image from mapping `{yx: value}` and `cmap = {value: rgb}`.
 
   >>> m = {(2, 2): 'A', (2, 4): 'B', (1, 3): 'A'}
@@ -1727,20 +1768,21 @@ def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
     raise ValueError(f'More than one dimension in {shape} is -1.')
   if -1 in shape:
     slice_size = math.prod(dim for dim in shape if dim != -1)
-    shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim
-                  for dim in shape)
+    shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim for dim in shape)
   elif math.prod(shape) < num:
     raise ValueError(f'{shape} is insufficiently large for {num} elements.')
   return shape
 
 
-def assemble_arrays(arrays: Sequence[_NDArray],
-                    shape: Sequence[int],
-                    *,
-                    background: _ArrayLike = 0,
-                    align: str = 'center',
-                    spacing: _ArrayLike = 0,
-                    round_to_even: _ArrayLike = False) -> _NDArray:
+def assemble_arrays(
+    arrays: Sequence[_NDArray],
+    shape: Sequence[int],
+    *,
+    background: _ArrayLike = 0,
+    align: str = 'center',
+    spacing: _ArrayLike = 0,
+    round_to_even: _ArrayLike = False,
+) -> _NDArray:
   """Return an output array formed as a packed grid of input arrays.
 
   Args:
@@ -1780,8 +1822,8 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   shape = _fit_shape(shape, num)
   if any(array.dtype != arrays[0].dtype for array in arrays):
     raise ValueError(f'Arrays {arrays} have different types.')
-  tail_dims = arrays[0].shape[len(shape):]
-  if any(array.shape[len(shape):] != tail_dims for array in arrays):
+  tail_dims = arrays[0].shape[len(shape) :]
+  if any(array.shape[len(shape) :] != tail_dims for array in arrays):
     raise ValueError(f'Shapes of {arrays} do not all end in {tail_dims}')
   align2 = np.broadcast_to(np.asarray(align), (num, len(shape)))
   spacing2 = np.broadcast_to(np.asarray(spacing), len(shape))
@@ -1789,9 +1831,10 @@ def assemble_arrays(arrays: Sequence[_NDArray],
   del align, spacing, round_to_even
 
   # [shape] -> leading dimensions [:len(shape)] of each input array.
-  head_dims = np.array([list(array.shape[:len(shape)]) for array in arrays] +
-                       [[0] * len(shape)] * (math.prod(shape) - num)).reshape(
-                           *shape, len(shape))
+  head_dims = np.array(
+      [list(array.shape[: len(shape)]) for array in arrays]
+      + [[0] * len(shape)] * (math.prod(shape) - num)
+  ).reshape(*shape, len(shape))
 
   # For each axis, find the length and position of each slice of input arrays.
   axis_lengths, axis_origins = [], []
@@ -1822,8 +1865,7 @@ def assemble_arrays(arrays: Sequence[_NDArray],
     remainder = length - size
     if align not in ('start', 'stop', 'center'):
       raise ValueError(f'Alignment {align} is not recognized.')
-    return (0 if align == 'start' else
-            remainder if align == 'stop' else remainder // 2)
+    return 0 if align == 'start' else remainder if align == 'stop' else remainder // 2
 
   # Copy each input array to its packed, aligned location in the output array.
   for i, array in enumerate(arrays):
@@ -1863,12 +1905,11 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
   def slice_axis(o: int) -> slice:
     return slice(o, None) if o >= 0 else slice(0, o)
 
-  new_array[tuple(slice_axis(o) for o in offset)] = (
-      array[tuple(slice_axis(-o) for o in offset)])
+  new_array[tuple(slice_axis(o) for o in offset)] = array[tuple(slice_axis(-o) for o in offset)]
 
   for axis, o in enumerate(offset):
-    new_array[(slice(None),) * axis +
-              (slice(0, o) if o >= 0 else slice(o, None),)] = constant_values
+    slices = (slice(None),) * axis + (slice(0, o) if o >= 0 else slice(o, None),)
+    new_array[slices] = constant_values
 
   return new_array
 
@@ -1917,12 +1958,14 @@ def array_index(array: _NDArray, item: Any) -> int:
 def _get_pil_font(font_size: int, font_name: str) -> Any:
   import matplotlib
   import PIL.ImageFont
+
   font_file = f'{matplotlib.__path__[0]}/mpl-data/fonts/ttf/{font_name}.ttf'
   return PIL.ImageFont.truetype(font_file, font_size)  # Slow ~1.3 s but gets cached.
 
 
 def rasterized_text(
-    text: str, *,
+    text: str,
+    *,
     background: _ArrayLike = 255,
     foreground: _ArrayLike = 0,
     fontsize: int = 14,
@@ -1960,11 +2003,12 @@ def rasterized_text(
   >>> image.shape
   (17, 42, 3)
   """
+  import PIL.Image
+  import PIL.ImageDraw
+
   background = np.broadcast_to(background, 3)
   foreground = np.broadcast_to(foreground, 3)
   pil_font = _get_pil_font(fontsize, fontname)
-  import PIL.Image
-  import PIL.ImageDraw
   large_shape = int(fontsize * 1.2 + 10), int(fontsize * 1.2 * len(text)), 3
   pil_image = PIL.Image.fromarray(np.full(large_shape, background, dtype=np.uint8))
   draw = PIL.ImageDraw.Draw(pil_image)
@@ -2084,6 +2128,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool =
   """
   if sys.version_info >= (3, 9):
     import graphlib  # pylint: disable=import-error
+
     return list(graphlib.TopologicalSorter(graph).static_order())[::-1]
 
   result = []
@@ -2115,8 +2160,9 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool =
 # ** Search algorithms
 
 
-def discrete_binary_search(feval: Callable[[int], float], xl: int, xh: int,
-                           y_desired: float, /) -> int:
+def discrete_binary_search(
+    feval: Callable[[int], float], xl: int, xh: int, y_desired: float, /,
+) -> int:
   """Return `x` such that `feval(x) <= y_desired < feval(x + 1)`.
 
   Parameters must satisfy `xl < xh` and `feval(xl) <= y_desired < feval(xh)`.
@@ -2240,11 +2286,11 @@ def run(args: str | Sequence[str], /) -> None:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
       check=False,
-      universal_newlines=True)
+      universal_newlines=True,
+  )
   print(proc.stdout, end='', flush=True)
   if proc.returncode:
-    raise RuntimeError(
-        f"Command '{proc.args}' failed with code {proc.returncode}.")
+    raise RuntimeError(f"Command '{proc.args}' failed with code {proc.returncode}.")
 
 
 if __name__ == '__main__':

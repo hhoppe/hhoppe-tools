@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- fill-column: 80; -*-
+# -*- fill-column: 100; -*-
 """Tests for hhoppe_tools module."""
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ def test_string_grid_string_roundtrip() -> None:
   hh.check_eq(s2, s.strip())
 
   g = hh.grid_from_string(s)
-  hh.check_eq(g.dtype, '<U1')      # single unicode character
+  hh.check_eq(g.dtype, '<U1')  # single unicode character
   hh.check_eq(g.nbytes, 48)
   hh.check_eq(hh.string_from_grid(g), s.strip())
 
@@ -52,6 +52,7 @@ def test_union_find() -> None:
 
 def test_noop_decorator() -> None:
   """Test the `noop_decorator`."""
+
   @hh.noop_decorator
   def func1(i: int) -> int:
     return i * 2
@@ -79,8 +80,7 @@ def test_selective_lru_cache() -> None:
   called_args = []
 
   @hh.selective_lru_cache(maxsize=None, ignore_kwargs=('kw1', 'kw2'))
-  def func1(arg1: int, *,
-            kw0: bool, kw1: bool, kw2: bool, kw3: bool = False) -> int:
+  def func1(arg1: int, *, kw0: bool, kw1: bool, kw2: bool, kw3: bool = False) -> int:
     """Dummy test function."""
     nonlocal called_args
     called_args = [arg1, kw0, kw1, kw2, kw3]
@@ -92,14 +92,11 @@ def test_selective_lru_cache() -> None:
     func1(*args, **kwargs)
     hh.check_eq(called_args, expected)
 
-  f(1, kw0=False, kw1=False, kw2=False, kw3=False,
-    expected=[1, False, False, False, False])
+  f(1, kw0=False, kw1=False, kw2=False, kw3=False, expected=[1, False, False, False, False])
   f(1, kw0=False, kw1=False, kw2=False, kw3=False, expected=[])
-  f(2, kw0=False, kw1=False, kw2=False, kw3=False,
-    expected=[2, False, False, False, False])
+  f(2, kw0=False, kw1=False, kw2=False, kw3=False, expected=[2, False, False, False, False])
   f(2, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
-  f(2, kw0=True, kw1=True, kw2=True, kw3=True,
-    expected=[2, True, True, True, True])
+  f(2, kw0=True, kw1=True, kw2=True, kw3=True, expected=[2, True, True, True, True])
   f(1, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
 
 

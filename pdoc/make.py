@@ -34,8 +34,11 @@ def main() -> None:
     output_file = OUTPUT_DIRECTORY / 'hhoppe_tools.html'
     text = output_file.read_text()
     # collections.abc.Iterable -> Iterable.
-    text = text.replace('<span class="n">collections</span><span class="o">'
-                        '.</span><span class="n">abc</span><span class="o">.</span>', '')
+    text = text.replace(
+        '<span class="n">collections</span><span class="o">'
+        '.</span><span class="n">abc</span><span class="o">.</span>',
+        '',
+    )
     # typing.* -> *.
     text = text.replace('<span class="n">typing</span><span class="o">.</span>', '')
     output_file.write_text(text)
