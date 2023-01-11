@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.1.8'
+__version__ = '1.1.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2155,6 +2155,28 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool =
           raise ValueError('Graph contains a cycle')
 
   return result[::-1]
+
+
+# ** Plotting
+
+
+def image_from_plt(fig: Any, background: _ArrayLike = 255) -> np.ndarray:
+  """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
+  # isinstance(fig, matplotlib.figure.Figure)
+  with io.BytesIO() as io_buf:
+    # savefig(bbox_inches='tight', pad_inches=0.0) changes dims, so would require format='png'.
+    fig.savefig(io_buf, format='raw', dpi=fig.dpi)
+    shape = int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), 4  # RGBA.
+    image = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
+    # Composite the image  over the background color.
+    background2 = np.broadcast_to(np.asarray(background), 3)
+    alpha = image[..., 3:4] / 255
+    premultiplied_alpha = False  # As observed.
+    if premultiplied_alpha:
+      image = (image[..., :3] + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+    else:
+      image = (image[..., :3] * alpha + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+    return image
 
 
 # ** Search algorithms
