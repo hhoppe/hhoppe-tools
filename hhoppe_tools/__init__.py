@@ -708,7 +708,7 @@ def terse_str(cls: type, /) -> type:
       if field.repr
   }
 
-  def __str__(self: Any) -> str:
+  def new_str(self: Any) -> str:
     """Return a string containing only the non-default field values."""
     text = ', '.join(
         f'{name}={getattr(self, name)!r}'
@@ -717,7 +717,7 @@ def terse_str(cls: type, /) -> type:
     )
     return f'{type(self).__name__}({text})'
 
-  setattr(cls, '__str__', __str__)
+  setattr(cls, '__str__', new_str)
   return cls
 
 
