@@ -2,11 +2,12 @@
 # -*- fill-column: 100; -*-
 """Library of Python tools by Hugues Hoppe.
 
-Useful commands to test and polish this file:
-
-cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
+Useful commands to lint and test this module:
+```shell
+cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo pyink; pyink --diff .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
 env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
+```
 """
 
 from __future__ import annotations
@@ -2074,7 +2075,7 @@ def overlay_text(
   assert len(yx) == 2
   assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
   if tuple(map(int, PIL.__version__.split('.'))) < (8, 0):
-    warnings.warn('Old PIL lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
+    warnings.warn('Pillow<8.0 lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
     return
   text_image = rasterized_text(text, **kwargs)
   text_shape, image_shape = text_image.shape[:2], image.shape[:2]
