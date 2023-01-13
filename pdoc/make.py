@@ -17,7 +17,7 @@ def main() -> None:
       edit_url_map=None,
       # favicon='https://github.com/hhoppe/hhoppe-tools/raw/main/v.ico',
       footer_text='',
-      # logo='https://github.com/hhoppe/hhoppe-tools/raw/main/v.png',
+      # logo='https://github.com/hhoppe/hhoppe-tools/raw/main/v2.png',
       logo_link='https://hhoppe.github.io/hhoppe-tools/',
       math=True,
       search=True,
