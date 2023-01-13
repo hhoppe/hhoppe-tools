@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.1'
+__version__ = '1.2.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -41,6 +41,7 @@ import types
 import typing
 from typing import Any, Generic, Literal, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
+import warnings
 
 import numpy as np
 import numpy.typing as npt
@@ -2067,9 +2068,14 @@ def overlay_text(
   >>> image[6, :7, 0]
   array([250, 240, 240,  69, 194, 240, 240], dtype=uint8)
   """
+  import PIL
+
   assert image.ndim == 3 and image.dtype == np.uint8
   assert len(yx) == 2
   assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
+  if tuple(map(int, PIL.__version__.split('.'))) < (8, 0):
+    warnings.warn('Old PIL lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
+    return
   text_image = rasterized_text(text, **kwargs)
   text_shape, image_shape = text_image.shape[:2], image.shape[:2]
   mid = np.array(text_shape) // 2
