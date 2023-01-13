@@ -12,7 +12,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.0'
+__version__ = '1.2.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -338,6 +338,12 @@ def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) 
 # ** Jupyter/IPython notebook functionality
 
 
+def _get_ipython() -> Any:
+  import IPython
+
+  return IPython.get_ipython()  # type: ignore
+
+
 def in_colab() -> bool:
   """Return True if running inside Google Colab.
 
@@ -356,7 +362,7 @@ def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
 
-  IPython.display.display(IPython.display.HTML(text))
+  IPython.display.display(IPython.display.HTML(text))  # type: ignore
 
 
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
@@ -375,19 +381,15 @@ class _CellTimer:
   instance: _CellTimer | None = None
 
   def __init__(self) -> None:
-    import IPython
-
     self.elapsed_times: dict[int, float] = {}
     self.pre_run(None)
-    IPython.get_ipython().events.register('pre_run_cell', self.pre_run)
-    IPython.get_ipython().events.register('post_run_cell', self.post_run)
+    _get_ipython().events.register('pre_run_cell', self.pre_run)
+    _get_ipython().events.register('post_run_cell', self.post_run)
 
   def close(self) -> None:
     """Destroy the `_CellTimer` and its notebook callbacks."""
-    import IPython
-
-    IPython.get_ipython().events.unregister('pre_run_cell', self.pre_run)
-    IPython.get_ipython().events.unregister('post_run_cell', self.post_run)
+    _get_ipython().events.unregister('pre_run_cell', self.pre_run)
+    _get_ipython().events.unregister('post_run_cell', self.post_run)
 
   def pre_run(self, unused_info: Any) -> None:
     """Start a timer for the notebook cell execution."""
@@ -395,23 +397,19 @@ class _CellTimer:
 
   def post_run(self, unused_result: Any) -> None:
     """Start the timer for the notebook cell execution."""
-    import IPython
-
     elapsed_time = time.monotonic() - self.start_time
-    input_index = IPython.get_ipython().execution_count - 1
+    input_index = _get_ipython().execution_count - 1
     self.elapsed_times[input_index] = elapsed_time
 
   def show_times(self, n: int | None = None, sort: bool = False) -> None:
     """Print notebook cell timings."""
-    import IPython
-
     print(f'# Total time: {sum(self.elapsed_times.values()):.2f} s')
     times = list(self.elapsed_times.items())
     times = sorted(times, key=lambda x: x[sort], reverse=sort)
     # https://github.com/ipython/ipython/blob/master/IPython/core/history.py
     # https://ipython.readthedocs.io/en/stable/api/generated/IPython.core.history.html
-    session = IPython.get_ipython().history_manager.session_number
-    history_range = IPython.get_ipython().history_manager.get_range(session)
+    session = _get_ipython().history_manager.session_number
+    history_range = _get_ipython().history_manager.get_range(session)
     inputs = {index: text for unused_session, index, text in history_range}
     for input_index, elapsed_time in itertools.islice(times, n):
       cell_input = inputs[input_index]
@@ -426,9 +424,7 @@ def start_timing_notebook_cells() -> None:
 
   Place in an early notebook cell.  See also `show_notebook_cell_top_times`.
   """
-  import IPython
-
-  if IPython.get_ipython():
+  if _get_ipython():
     if _CellTimer.instance:
       _CellTimer.instance.close()
     _CellTimer.instance = _CellTimer()
@@ -1968,68 +1964,123 @@ def rasterized_text(
     *,
     background: _ArrayLike = 255,
     foreground: _ArrayLike = 0,
-    fontsize: int = 14,
     fontname: str = 'cmtt10',
-    spacing: int = 4,
-    align: str = 'left',
-    shape: tuple[int, int] | None = None,
-    margin: _ArrayLike = 1,
+    fontsize: int = 14,
+    spacing: int | None = None,
+    textalign: str = 'left',
+    margin: _ArrayLike = ((4, 1), (1, 1)),  # [[t, b], [l, r]].
+    min_width: int = 0,
 ) -> _NDArray:
   """Returns a uint8 RGB image with the text rasterized into it.
 
+  This function tackles the challenge of letting both the text image size and the text position
+  within it be independent of the text content, to avoid jittering in video animations.
+  The extents of glyph characters often exceed the ascent and descent (e.g. '['); some characters
+  extend left (e.g. 'm' has l=-1) and some extend right (e.g. 'amqRU').  In all cases we rely
+  on `margin` to allocate sufficient room.
+
   Args:
-    text: String to rasterize.  Embedded newlines indicate multiline tet.
+    text: String to rasterize.  Embedded newlines indicate multiline text.
     background: RGB background color of created image.  Scalar indicates gray value.
     foreground: RGB color rasterized text.  Scalar indicates gray value.
-    fontsize: Size of rasterized font.
-    fontname: Name of font compatible with `PIL.ImageFont.truetype()`, e.g., `'cmr10'`.
-    spacing: Number of pixels between lines in multiline text.
-    align: Horizontal alignment of multiline text.
-    shape: Dimensions (height, width) for rasterized text image, prior to addition of `margin`.
-      Any extra Space is added at the right and below the text.  If None, the dimensions are
-      determined automatically based on the rasterized content.  An explicit shape is useful to
-      avoid jitter in video animations.
-    margin: Number of pixels around the rasterized text, in the format of `hh.pad_array`.
+    fontname: Name of font compatible with `PIL.ImageFont.truetype()`, such as `'cmtt10'`
+      or `'cmr10'`.
+    fontsize: Size of rasterized font, in pixels.
+    spacing: Number of pixels between lines for multiline text.  If None, selected automatically
+      based on `fontsize`.
+    textalign: Inter-line horizontal alignment for multiline text.
+    margin: Number of additional background pixels padded around text.  Must be broadcastable
+      onto `[[top, bottom], [left, right]`; see `pad_array()`.
+    min_width: Minimum width of returned text image.  This is particularly useful for proportional
+      fonts.  Padding is performed using `background` color.
 
   >>> image = rasterized_text('Hello')
   >>> image[0][0]
   array([255, 255, 255], dtype=uint8)
   >>> image.shape
-  (11, 38, 3)
+  (17, 39, 3)
 
-  >>> image = rasterized_text('Hello', shape=(15, 40), background=250)
+  >>> image = rasterized_text('Hello', background=250, margin=3)
   >>> image[0][0]
   array([250, 250, 250], dtype=uint8)
   >>> image.shape
-  (17, 42, 3)
+  (18, 43, 3)
   """
   import PIL.Image
   import PIL.ImageDraw
 
+  text = text.rstrip('\n')
+  num_lines = text.count('\n') + 1
   background = np.broadcast_to(background, 3)
-  foreground = np.broadcast_to(foreground, 3)
-  pil_font = _get_pil_font(fontsize, fontname)
-  large_shape = int(fontsize * 1.2 + 10), int(fontsize * 1.2 * len(text)), 3
-  pil_image = PIL.Image.fromarray(np.full(large_shape, background, dtype=np.uint8))
+  foreground = tuple(np.broadcast_to(foreground, 3))
+  margin = np.broadcast_to(margin, (2, 2))
+  font = _get_pil_font(fontsize, fontname)
+  if spacing is None:
+    spacing = (fontsize + 6) // 4  # Estimated for 'y['; can be smaller if text lacks brackets.
+  draw_args = dict(font=font, anchor='la', spacing=spacing, align=textalign)
+
+  def get_height_width_y() -> tuple[float, float, float]:
+    dummy_pil_image = PIL.Image.fromarray(np.full((1, 1, 3), 0, np.uint8))
+    draw = PIL.ImageDraw.Draw(dummy_pil_image)
+    # We could instead use "ascent, descent = font.getmetrics()" but it seems less accurate.
+    canonical_text = '\n'.join(['by'] * num_lines)  # Representative ascender and descender.
+    unused_l, t, unused_r, b = draw.multiline_textbbox((0, 0), canonical_text, **draw_args)
+    width = draw.multiline_textbbox((0, 0), text, **draw_args)[2]
+    text1 = re.sub(r'[^\n]', 'm', text)
+    width1 = draw.multiline_textbbox((0, 0), text1, **draw_args)[2]
+    # Often, the last character on a line is wider by 1 pixel, so we stabilize that case.
+    if width + 1 == width1:
+      width = width1
+    return b - t, width, -t
+
+  height, width, y = get_height_width_y()
+  shape = math.ceil(height + margin[0].sum()), math.ceil(max(width + margin[1].sum(), min_width))
+  pil_image = PIL.Image.fromarray(np.full((*shape, 3), background, dtype=np.uint8))
   draw = PIL.ImageDraw.Draw(pil_image)
-  anchor = 20, 5
-  draw.text(anchor, text, fill=tuple(foreground), font=pil_font, spacing=spacing, align=align)
+  xy = margin[1][0], margin[0][0] + y
+  draw.text(xy, text, **draw_args, fill=foreground)
   image = np.array(pil_image)
-  image = bounding_crop(image, background)
-  if shape is not None:
-    assert image.shape[0] <= shape[0] and image.shape[1] <= shape[1]
-    pad = (shape[0] - image.shape[0], 0), (0, shape[1] - image.shape[1])
-    image = pad_array(image, pad, background)
-  return pad_array(image, margin, background)
+  return image
 
 
-def overlay_text(image: _NDArray, yx: tuple[int, int], text: str, **kwargs: Any) -> None:
-  """Modifies `image` by overlaying rasterized `text` at position `yx`."""
+def overlay_text(
+    image: _NDArray,
+    yx: tuple[int, int],
+    text: str,
+    align: str = 'tl',  # '[tmb][lcr]'.
+    **kwargs: Any,
+) -> None:
+  """Modifies `image` in-place by overlaying of a box of rasterized `text` at a specified location.
+
+  Args:
+    image: uint8 RGB image whose contents are overlaid with a rasterized text box.
+    yx: Tuple `(y, x)` of pixel coordinates for placement of the text box, according `align`.
+    text: String to rasterize.  Embedded newlines indicate multiline text.
+    align: Two-character alignment code [tmb][lcr].  The first character specifies vertical
+      alignment about `yx[0]` as `'t'` for top, `'m'` for middle, or `'b'` for bottom.  The second
+      character specifies horizontal alignment about `yx[1]` as `'l'` for left, `'c'` for center,
+      or `'r'` for right.
+    **kwargs: Additional parameters passed to `rasterized_text()`.
+
+  >>> image = np.full((20, 20, 3), 250, np.uint8)
+  >>> overlay_text(image, (1, 1), 'H', foreground=30, background=240)
+  >>> image[6, :7, 0]
+  array([250, 240, 240,  69, 194, 240, 240], dtype=uint8)
+  """
   assert image.ndim == 3 and image.dtype == np.uint8
   assert len(yx) == 2
-  image2 = rasterized_text(text, **kwargs)
-  assert all(0 <= yx[c] and yx[c] + image2.shape[c] <= image.shape[c] for c in range(2))
-  image[tuple(slice(yx[c], yx[c] + image2.shape[c]) for c in range(2))] = image2
+  assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
+  text_image = rasterized_text(text, **kwargs)
+  text_shape, image_shape = text_image.shape[:2], image.shape[:2]
+  mid = np.array(text_shape) // 2
+  top_left = (
+      yx[0] + {'t': 0, 'm': -mid[0], 'b': -text_shape[0]}[align[0]],
+      yx[1] + {'l': 0, 'c': -mid[1], 'r': -text_shape[1]}[align[1]],
+  )
+  slices = tuple(slice(top_left[c], top_left[c] + text_shape[c]) for c in range(2))
+  if not all(0 <= s.start <= s.stop <= stop for s, stop in zip(slices, image_shape)):
+    raise ValueError(f'Cannot place {text_shape=} at {top_left=} in {image_shape=}; {yx=}.')
+  image[slices] = text_image
 
 
 # ** Graph algorithms
@@ -2160,7 +2211,7 @@ def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool =
 # ** Plotting
 
 
-def image_from_plt(fig: Any, background: _ArrayLike = 255) -> np.ndarray:
+def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
   """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
   # isinstance(fig, matplotlib.figure.Figure)
   with io.BytesIO() as io_buf:
@@ -2183,7 +2234,7 @@ def image_from_plt(fig: Any, background: _ArrayLike = 255) -> np.ndarray:
 
 
 def discrete_binary_search(
-    feval: Callable[[int], float], xl: int, xh: int, y_desired: float, /,
+    feval: Callable[[int], float], xl: int, xh: int, y_desired: float, /
 ) -> int:
   """Return `x` such that `feval(x) <= y_desired < feval(x + 1)`.
 
