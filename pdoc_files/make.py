@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Create HTML documentation from the source code using `pdoc`."""
-# Note: Invoke this script from the parent directory as "pdoc/make.py".
+# Note: Invoke this script from the parent directory as "pdoc_files/make.py".
 
 import pathlib
 
 import pdoc
 
-OUTPUT_DIRECTORY = pathlib.Path('pdoc/html')
+OUTPUT_DIRECTORY = pathlib.Path('pdoc_files/html')
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
       math=True,
       search=True,
       show_source=True,
-      # template_directory=pathlib.Path('/pdoc'),
+      # template_directory=pathlib.Path('/pdoc_files'),
   )
 
   pdoc.pdoc(
