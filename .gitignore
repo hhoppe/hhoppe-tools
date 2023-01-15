@@ -129,4 +129,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-/pdoc/html/
+/pdoc_files/html/
