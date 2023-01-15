@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.2'
+__version__ = '1.2.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -26,6 +26,7 @@ import doctest
 import enum
 import functools
 import gc
+import inspect
 import io
 import itertools
 import math
@@ -36,6 +37,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 import types
@@ -439,6 +441,67 @@ def show_notebook_cell_top_times() -> None:
   """
   if _CellTimer.instance:
     _CellTimer.instance.show_times(n=20, sort=True)
+
+
+def pdoc_help(
+    thing: Any,
+    /,
+    *,
+    docformat: Literal['markdown', 'google', 'numpy', 'restructuredtext'] = 'google',
+) -> None:
+  """Display `pdoc` (HTML) documentation for a function or class.
+
+  >>> htmls = []
+  >>> with unittest.mock.patch('IPython.display.display', htmls.append) as m:
+  ...   pdoc_help(dataclasses.dataclass)
+  >>> (html,) = htmls
+  >>> html_text = html.data
+  >>> assert 'Returns the same class as was passed in' in html_text
+  >>> assert 'View Source' in html_text
+  """
+  import pdoc
+
+  with tempfile.TemporaryDirectory() as temp_dir:
+    template_dir = pathlib.Path(temp_dir)
+    (template_dir / 'frame.html.jinja2').write_text(
+        """\
+      <div>
+          {% block content %}{% endblock %}
+          {% filter minify_css %}
+                  <style>{% include "syntax-highlighting.css" %}</style>
+                  <style>{% include "theme.css" %}</style>
+                  <style>{% include "content.css" %}</style>
+          {% endfilter %}
+      </div>"""
+    )
+    (template_dir / 'module.html.jinja2').write_text(
+        """\
+      {% extends "default/module.html.jinja2" %}
+      {% macro is_public(doc) %}
+          {% if doc.qualname == show_only %}
+              {{ default_is_public(doc) }}
+          {% endif %}
+      {% endmacro %}
+      {% block module_info %}{% endblock %}
+      """
+    )
+    module = inspect.getmodule(thing)
+    assert module
+    doc = pdoc.doc.Module(module)
+    pdoc.render.configure(
+        docformat=docformat, math=True, show_source=True, template_directory=template_dir
+    )
+    pdoc.render.env.globals['show_only'] = getattr(thing, '__qualname__', '')
+    html_text = pdoc.render.html_module(module=doc, all_modules={})
+
+    # Limit the maximum width.
+    html_text = '<style>main.pdoc {max-width:784px;}</style>' + html_text
+
+    # The <h6> tags would appear in the Jupyterlab table of contents, so change to <div>.
+    style = 'font-size: 14px; font-weight: 700;'
+    html_text = html_text.replace('<h6', f'<div style="{style}"').replace('</h6>', '</div>')
+
+    display_html(html_text)
 
 
 # ** Timing
