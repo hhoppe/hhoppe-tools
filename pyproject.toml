@@ -31,6 +31,7 @@ repository = "https://github.com/hhoppe/hhoppe-tools"
 # Installed through `pip install .[dev]`
 dev = [
     "matplotlib",
+    "pdoc",
     "Pillow",
     "IPython",
     # "pytest",
