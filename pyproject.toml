@@ -32,6 +32,7 @@ repository = "https://github.com/hhoppe/hhoppe-tools"
 dev = [
     "matplotlib",
     "Pillow",
+    "IPython",
     # "pytest",
     # "pytest-xdist",
     # "pylint>=2.6.0",
