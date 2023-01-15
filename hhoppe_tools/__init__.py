@@ -501,11 +501,11 @@ def pdoc_help(
     html = pdoc.render.html_module(module=doc, all_modules={})
 
   # Limit the maximum width.
-  html = '<style>main.pdoc {max-width:784px;}</style>\n' + html
+  html = '<style>main.pdoc {max-width: 784px;}</style>\n' + html
 
   # The <h6> tags would appear in the Jupyterlab table of contents, so change to <div>.
   html = '<style>.myh6 {font-size: 14px; font-weight: 700;}</style>\n' + html
-  html = html.replace('<h6', f'<div class="myh6"').replace('</h6>', '</div>')
+  html = html.replace('<h6', '<div class="myh6"').replace('</h6>', '</div>')
 
   display_html(html)
 
