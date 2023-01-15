@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.4'
+__version__ = '1.2.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -477,7 +477,7 @@ def pdoc_help(
         """\
       {% extends "default/module.html.jinja2" %}
       {% macro is_public(doc) %}
-          {% if doc.qualname == show_only %}
+          {% if should_show(doc.qualname) %}
               {{ default_is_public(doc) }}
           {% endif %}
       {% endmacro %}
@@ -491,15 +491,20 @@ def pdoc_help(
     pdoc.render.configure(
         docformat=docformat, math=True, show_source=True, template_directory=template_dir
     )
-    pdoc.render.env.globals['show_only'] = getattr(thing, '__qualname__', '')
+
+    def should_show(qualname: str) -> bool:
+      thing_name = getattr(thing, '__qualname__', '')
+      return all(x == y for x, y in zip(qualname.split('.'), thing_name.split('.')))
+
+    pdoc.render.env.globals['should_show'] = should_show
     html = pdoc.render.html_module(module=doc, all_modules={})
 
   # Limit the maximum width.
-  html = '<style>main.pdoc {max-width:784px;}</style>' + html
+  html = '<style>main.pdoc {max-width:784px;}</style>\n' + html
 
   # The <h6> tags would appear in the Jupyterlab table of contents, so change to <div>.
-  style = 'font-size: 14px; font-weight: 700;'
-  html = html.replace('<h6', f'<div style="{style}"').replace('</h6>', '</div>')
+  html = '<style>.myh6 {font-size: 14px; font-weight: 700;}</style>\n' + html
+  html = html.replace('<h6', f'<div class="myh6"').replace('</h6>', '</div>')
 
   display_html(html)
 
