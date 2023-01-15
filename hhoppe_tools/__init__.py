@@ -451,6 +451,7 @@ def pdoc_help(
 ) -> None:
   """Display `pdoc` (HTML) documentation for a function or class.
 
+  >>> import IPython.display
   >>> htmls = []
   >>> with unittest.mock.patch('IPython.display.display', htmls.append) as m:
   ...   pdoc_help(dataclasses.dataclass)
