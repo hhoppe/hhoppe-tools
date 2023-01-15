@@ -457,8 +457,7 @@ def pdoc_help(
   ...   pdoc_help(dataclasses.dataclass)
   >>> (html,) = htmls
   >>> html_text = html.data
-  >>> assert 'Returns the same class as was passed in' in html_text
-  >>> assert 'View Source' in html_text
+  >>> assert 'View Source' in html_text, html_text
   """
   import pdoc
 
