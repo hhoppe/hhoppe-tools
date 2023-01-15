@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.3'
+__version__ = '1.2.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -456,8 +456,7 @@ def pdoc_help(
   >>> with unittest.mock.patch('IPython.display.display', htmls.append) as m:
   ...   pdoc_help(dataclasses.dataclass)
   >>> (html,) = htmls
-  >>> html_text = html.data
-  >>> assert 'View Source' in html_text, html_text
+  >>> assert 'View Source' in html.data, html.data
   """
   import pdoc
 
@@ -486,22 +485,23 @@ def pdoc_help(
       """
     )
     module = inspect.getmodule(thing)
-    assert module
+    if module is None:
+      raise ValueError(f'Cannot identify module for {thing=}.')
     doc = pdoc.doc.Module(module)
     pdoc.render.configure(
         docformat=docformat, math=True, show_source=True, template_directory=template_dir
     )
     pdoc.render.env.globals['show_only'] = getattr(thing, '__qualname__', '')
-    html_text = pdoc.render.html_module(module=doc, all_modules={})
+    html = pdoc.render.html_module(module=doc, all_modules={})
 
-    # Limit the maximum width.
-    html_text = '<style>main.pdoc {max-width:784px;}</style>' + html_text
+  # Limit the maximum width.
+  html = '<style>main.pdoc {max-width:784px;}</style>' + html
 
-    # The <h6> tags would appear in the Jupyterlab table of contents, so change to <div>.
-    style = 'font-size: 14px; font-weight: 700;'
-    html_text = html_text.replace('<h6', f'<div style="{style}"').replace('</h6>', '</div>')
+  # The <h6> tags would appear in the Jupyterlab table of contents, so change to <div>.
+  style = 'font-size: 14px; font-weight: 700;'
+  html = html.replace('<h6', f'<div style="{style}"').replace('</h6>', '</div>')
 
-    display_html(html_text)
+  display_html(html)
 
 
 # ** Timing
