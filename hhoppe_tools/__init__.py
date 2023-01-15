@@ -453,7 +453,7 @@ def pdoc_help(
 
   >>> import IPython.display
   >>> htmls = []
-  >>> with unittest.mock.patch('IPython.display.display', htmls.append) as m:
+  >>> with unittest.mock.patch('IPython.display.display', htmls.append):
   ...   pdoc_help(dataclasses.dataclass)
   >>> (html,) = htmls
   >>> assert 'View Source' in html.data, html.data
