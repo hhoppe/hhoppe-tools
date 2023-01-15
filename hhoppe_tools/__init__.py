@@ -458,6 +458,7 @@ def pdoc_help(
   >>> (html,) = htmls
   >>> assert 'View Source' in html.data, html.data
   """
+  # Adapted from https://github.com/mitmproxy/pdoc/issues/494.
   import pdoc
 
   with tempfile.TemporaryDirectory() as temp_dir:
