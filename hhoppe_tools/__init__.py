@@ -1112,7 +1112,7 @@ def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
 
 
 def prime_factors(n: int, /) -> list[int]:
-  """Return an ascending list of the (greather-than-one) prime factors of `n`.
+  """Return an ascending list of the (greater-than-one) prime factors of `n`.
 
   >>> prime_factors(1)
   []
@@ -1679,7 +1679,7 @@ def grid_from_indices(
 
   Indices are sequences of integers with some length D, which determines the dimensionality of
   the output `array`.  The array shape is computed by bounding the range of index coordinates in
-  each dimension (which may be overriden by `indices_min` and `indices_max`) and is adjusted
+  each dimension (which may be overridden by `indices_min` and `indices_max`) and is adjusted
   by the `pad` parameter.
 
   Args:

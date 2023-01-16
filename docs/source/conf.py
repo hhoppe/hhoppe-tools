@@ -50,7 +50,7 @@ templates_path = ['_templates']
 exclude_patterns = ['.ipynb_checkpoints/*']
 
 # Big limitation which pdoc does not suffer from: long multiline function signatures.
-# There is some recent onging work, e.g. https://github.com/sphinx-doc/sphinx/pull/11011
+# There is some recent ongoing work, e.g. https://github.com/sphinx-doc/sphinx/pull/11011
 
 # Also: CSS trick in https://stackoverflow.com/questions/60146577 but too hacky.
 
