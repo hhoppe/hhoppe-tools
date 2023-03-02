@@ -231,7 +231,7 @@ def _dump_vars(*args: Any) -> str:
     prefix = this_function_name + '('
     begin = text.find(prefix)
     if begin < 0:
-      raise Exception(f'_dump_vars: cannot find "{prefix}" in line "{text}"')
+      raise AssertionError(f'_dump_vars: cannot find "{prefix}" in line "{text}"')
     begin += len(this_function_name)
     end = begin + matching_parenthesis(text[begin:])
     parameter_string = text[begin + 1 : end].strip()
