@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.5'
+__version__ = '1.2.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -498,7 +498,10 @@ def pdoc_help(
       return all(x == y for x, y in zip(qualname.split('.'), thing_name.split('.')))
 
     pdoc.render.env.globals['should_show'] = should_show
-    html = pdoc.render.html_module(module=doc, all_modules={})
+    with warnings.catch_warnings():
+      # Ignore the fact that pdoc cannot parse annotations of the form "x | y" with Python <3.10.
+      warnings.filterwarnings(action='ignore', message='Error parsing type annotation')
+      html = pdoc.render.html_module(module=doc, all_modules={})
 
   # Limit the maximum width.
   html = '<style>main.pdoc {max-width: 784px;}</style>\n' + html
