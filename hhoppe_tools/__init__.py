@@ -445,12 +445,13 @@ def show_notebook_cell_top_times() -> None:
 
 class StopExecution(Exception):
   """Exception that will not dump trace; useful to quietly abort a notebook cell computation."""
+
   # Adapted from https://stackoverflow.com/a/56953105.
 
-  def __init__(self, message='<StopExecution>'):
+  def __init__(self, message: str = '<StopExecution>') -> None:
     self.message = message
 
-  def _render_traceback_(self):
+  def _render_traceback_(self) -> None:
     if self.message:
       print(self.message)
 
