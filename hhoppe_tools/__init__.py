@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.6'
+__version__ = '1.2.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -441,6 +441,18 @@ def show_notebook_cell_top_times() -> None:
   """
   if _CellTimer.instance:
     _CellTimer.instance.show_times(n=20, sort=True)
+
+
+class StopExecution(Exception):
+  """Exception that will not dump trace; useful to quietly abort a notebook cell computation."""
+  # Adapted from https://stackoverflow.com/a/56953105.
+
+  def __init__(self, message='<StopExecution>'):
+    self.message = message
+
+  def _render_traceback_(self):
+    if self.message:
+      print(self.message)
 
 
 def pdoc_help(

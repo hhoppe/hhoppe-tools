@@ -2,7 +2,7 @@
 name = "hhoppe-tools"
 description = "Library of Python tools by Hugues Hoppe"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {file = "LICENSE"}
 authors = [{name = "Hugues Hoppe", email="hhoppe@gmail.com"}]
 classifiers = [
@@ -55,7 +55,6 @@ ignore_missing_imports = true
 strict = true
 exclude = "(^Other|^old_setup.py)"
 warn_return_any = false  # buggy numpy
-# python_version = "3.8"
 
 [tool.pyink]
 pyink-indentation = 2
