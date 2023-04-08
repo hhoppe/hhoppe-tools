@@ -169,8 +169,8 @@ def print_err(*args: str, **kwargs: Any) -> None:
   ...   print(repr(m.getvalue()))
   'hello\n'
   """
-  kwargs = {**dict(file=sys.stderr, flush=True), **kwargs}
-  print(*args, **kwargs)
+  kwargs2: Any = dict(file=sys.stderr, flush=True) | kwargs
+  print(*args, **kwargs2)
 
 
 def _dump_vars(*args: Any) -> str:
