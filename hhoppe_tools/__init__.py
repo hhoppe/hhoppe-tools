@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.7'
+__version__ = '1.2.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -283,19 +283,19 @@ def show(*args: Any) -> None:
   print(_dump_vars(*args), flush=True)
 
 
-def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
+def analyze_functools_caches(variables: Mapping[str, Any], /) -> None:
   """Report on usage and efficiency of memoization caches.
 
   Args:
     variables: Dictionary, which is usually `globals()`.
 
-  >>> @functools.lru_cache(maxsize=None)
+  >>> @functools.cache
   ... def func(i: int) -> int:
   ...   return i**2
 
   >>> [func(i) for i in [1, 2, 1, 3, 1]]
   [1, 4, 1, 9, 1]
-  >>> analyze_lru_caches(globals())
+  >>> analyze_functools_caches(globals())
   ...  # doctest:+ELLIPSIS
   # func ...  3/inf        0.400 hit=            2 miss=            3
   """
@@ -314,14 +314,14 @@ def analyze_lru_caches(variables: Mapping[str, Any], /) -> None:
     )
 
 
-def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) -> None:
+def clear_functools_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) -> None:
   """Clear all the function memoization caches.
 
   Args:
     variables: Dictionary, which is usually `globals()`.
     verbose: If True, show names of cleared caches.
 
-  >>> @functools.lru_cache(maxsize=None)
+  >>> @functools.cache
   ... def func(i: int) -> int:
   ...   return i**2
 
@@ -329,14 +329,14 @@ def clear_lru_caches(variables: Mapping[str, Any], /, *, verbose: bool = False) 
   [1, 4, 1, 9, 1]
   >>> check_eq(func.cache_info().currsize, 3)
 
-  >>> clear_lru_caches(globals())
+  >>> clear_functools_caches(globals())
   >>> check_eq(func.cache_info().hits, 0)
   """
   for name, value in variables.items():
     with contextlib.suppress(AttributeError):
       value.cache_clear()
       if verbose:
-        print(f'Cleared lru_cache for {name}().')
+        print(f'Cleared functools.cache for {name}().')
 
 
 # ** Jupyter/IPython notebook functionality
