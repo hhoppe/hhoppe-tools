@@ -485,7 +485,8 @@ def pdoc_help(
                   <style>{% include "theme.css" %}</style>
                   <style>{% include "content.css" %}</style>
           {% endfilter %}
-      </div>"""
+      </div>
+      """
     )
     (template_dir / 'module.html.jinja2').write_text(
         """\
