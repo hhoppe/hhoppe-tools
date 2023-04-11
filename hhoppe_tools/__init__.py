@@ -2257,49 +2257,6 @@ class UnionFind(Generic[_T]):
     return a
 
 
-def topological_sort(graph: Mapping[_T, Sequence[_T]], /, *, cycle_check: bool = False) -> list[_T]:
-  """Given a dag (directed acyclic graph), return a list of graph nodes such that for every
-  directed edge `(u, v)` in the graph, `u` is before `v` in the list.
-  See https://en.wikipedia.org/wiki/Topological_sorting and https://stackoverflow.com/a/47234034 .
-
-  >>> graph = {2: [3], 3: [4], 1: [2], 4: []}
-  >>> topological_sort(graph)
-  [1, 2, 3, 4]
-
-  >>> topological_sort({2: [3], 3: [4, 5], 1: [2], 4: [5], 5: []})
-  [1, 2, 3, 4, 5]
-  """
-  if sys.version_info >= (3, 9):
-    import graphlib  # pylint: disable=import-error
-
-    return list(graphlib.TopologicalSorter(graph).static_order())[::-1]
-
-  result = []
-  seen = set()
-
-  def recurse(node: _T) -> None:
-    for dependent in reversed(graph[node]):
-      if dependent not in seen:
-        seen.add(dependent)
-        recurse(dependent)
-    result.append(node)
-
-  all_dependents: set[_T] = set()
-  all_dependents.update(*graph.values())
-  for node in reversed(list(graph)):
-    if node not in all_dependents:
-      recurse(node)
-
-  if cycle_check:
-    position = {node: i for i, node in enumerate(result)}
-    for node, dependents in graph.items():
-      for dependent in dependents:
-        if position[node] < position[dependent]:
-          raise ValueError('Graph contains a cycle')
-
-  return result[::-1]
-
-
 # ** Plotting
 
 
