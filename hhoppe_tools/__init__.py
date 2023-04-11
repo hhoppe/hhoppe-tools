@@ -8,7 +8,7 @@ cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; e
 
 env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 ```
-."""
+"""
 
 from __future__ import annotations
 
