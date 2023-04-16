@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.8'
+__version__ = '1.2.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1434,6 +1434,28 @@ def array_always(a: _ArrayLike | Iterable[_ArrayLike], /) -> _NDArray:
   return np.asarray(a)
 
 
+def to_image(a: _ArrayLike, /, color0: _ArrayLike = 0, color1: _ArrayLike = 255) -> _NDArray:
+  """Return a 3-channel uint8 image given a boolean array and specified colors.
+
+  >>> to_image([False, True, True], 10, 240)
+  array([[ 10,  10,  10],
+         [240, 240, 240],
+         [240, 240, 240]], dtype=uint8)
+
+  >>> to_image(np.eye(2) == 1, (240, 241, 242), (255, 0, 0))
+  array([[[255,   0,   0],
+          [240, 241, 242]],
+  <BLANKLINE>
+         [[240, 241, 242],
+          [255,   0,   0]]], dtype=uint8)
+  """
+  a = np.asarray(a)
+  assert a.dtype == bool
+  image = np.full((*a.shape, 3), color0, np.uint8)
+  image[a] = color1
+  return image
+
+
 def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _NDArray:
   """Return `array` padded along initial dimensions by `value`, which may be an array.
 
@@ -1859,7 +1881,7 @@ def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
 
 
 def assemble_arrays(
-    arrays: Sequence[_NDArray],
+    arrays: Sequence[_NDArray] | _NDArray,
     shape: Sequence[int],
     *,
     background: _ArrayLike = 0,
