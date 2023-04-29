@@ -209,10 +209,10 @@ def _dump_vars(*args: Any) -> str:
     """Return the index of ')' matching '(' in text[0]."""
     check_eq(text[0], '(')
     num_open = 0
-    for i, c in enumerate(text):
-      if c == '(':
+    for i, ch in enumerate(text):
+      if ch == '(':
         num_open += 1
-      elif c == ')':
+      elif ch == ')':
         num_open -= 1
         if num_open == 0:
           return i
