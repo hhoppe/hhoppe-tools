@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.2.9'
+__version__ = '1.3.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -216,7 +216,7 @@ def _dump_vars(*args: Any) -> str:
         num_open -= 1
         if num_open == 0:
           return i
-    raise RuntimeError(f'No matching right parenthesis in "{text}"')
+    raise RuntimeError(f'No matching right parenthesis in "{text}".')
 
   # Adapted from make_dict() in https://stackoverflow.com/a/2553524 .
   stack = traceback.extract_stack()
@@ -231,7 +231,7 @@ def _dump_vars(*args: Any) -> str:
     prefix = this_function_name + '('
     begin = text.find(prefix)
     if begin < 0:
-      raise AssertionError(f'_dump_vars: cannot find "{prefix}" in line "{text}"')
+      raise RuntimeError(f'_dump_vars: cannot find "{prefix}" in line "{text}".')
     begin += len(this_function_name)
     end = begin + matching_parenthesis(text[begin:])
     parameter_string = text[begin + 1 : end].strip()
@@ -257,6 +257,7 @@ def _dump_vars(*args: Any) -> str:
       for expr, value in zip(expressions, args):
         l.append(f'{expr} = {value}' if expr[0] not in '"\'' else str(value))
       return ', '.join(l)
+
   raise AssertionError
 
 
@@ -486,7 +487,8 @@ def pdoc_help(
                   <style>{% include "content.css" %}</style>
           {% endfilter %}
       </div>
-      """
+      """,
+        encoding='utf-8',
     )
     (template_dir / 'module.html.jinja2').write_text(
         """\
@@ -497,7 +499,8 @@ def pdoc_help(
           {% endif %}
       {% endmacro %}
       {% block module_info %}{% endblock %}
-      """
+      """,
+        encoding='utf-8',
     )
     module = inspect.getmodule(thing)
     if module is None:
@@ -1021,11 +1024,11 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
   >>> re_groups(r'(\d+)', 'Some text.')
   Traceback (most recent call last):
   ...
-  ValueError: Did not locate pattern "(\d+)" in "Some text."
+  ValueError: Did not locate pattern "(\d+)" in "Some text.".
   """
   match = re.search(pattern, string)
   if not match:
-    raise ValueError(f'Did not locate pattern "{pattern}" in "{string}"')
+    raise ValueError(f'Did not locate pattern "{pattern}" in "{string}".')
   return match.groups()
 
 
@@ -2396,7 +2399,7 @@ def is_executable(path: _Path, /) -> bool:
   >>> import tempfile
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
-  ...   _ = path.write_text('test')
+  ...   _ = path.write_text('test', encoding='utf-8')
   ...   check_eq(is_executable(path), False)
   ...   if sys.platform != 'cygwin':
   ...     # Copy R bits to X bits:
