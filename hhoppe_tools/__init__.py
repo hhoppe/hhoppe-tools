@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.0'
+__version__ = '1.3.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -356,7 +356,7 @@ def in_colab() -> bool:
   False
   """
   try:
-    import google.colab  # pylint: disable=unused-import # noqa
+    import google.colab  # pylint: disable=unused-import # noqa # pytype: disable=import-error
 
     return True
   except ModuleNotFoundError:
@@ -375,6 +375,8 @@ def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
   # https://stackoverflow.com/a/66278615.
   style = f'{{max-width: {width}px!important;}}'
   text = f'<style>.jp-Cell.jp-MarkdownCell {style}</style>'
+  # Also useful, for show_var_docstring().
+  text += f'<style>.jp-RenderedMarkdown {style}</style>'
   display_html(text)
 
 
@@ -642,7 +644,7 @@ def prun(
   """
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
-  site_packages = np.__path__[0][:-5]
+  site_packages = list(np.__path__)[0][:-5]
   assert site_packages.endswith(('/site-packages/', '/dist-packages/'))
 
   profile = cProfile.Profile()
@@ -2068,7 +2070,7 @@ def _get_pil_font(font_size: int, font_name: str) -> Any:
   import matplotlib
   import PIL.ImageFont
 
-  font_file = f'{matplotlib.__path__[0]}/mpl-data/fonts/ttf/{font_name}.ttf'
+  font_file = f'{list(matplotlib.__path__)[0]}/mpl-data/fonts/ttf/{font_name}.ttf'
   return PIL.ImageFont.truetype(font_file, font_size)  # Slow ~1.3 s but gets cached.
 
 
@@ -2101,7 +2103,7 @@ def rasterized_text(
     fontsize: Size of rasterized font, in pixels.
     spacing: Number of pixels between lines for multiline text.  If None, selected automatically
       based on `fontsize`.
-    textalign: Inter-line horizontal alignment for multiline text.
+    textalign: Inter-line horizontal alignment for multiline text: 'left', 'center', or 'right'.
     margin: Number of additional background pixels padded around text.  Must be broadcastable
       onto `[[top, bottom], [left, right]`; see `pad_array()`.
     min_width: Minimum width of returned text image.  This is particularly useful for proportional
@@ -2130,7 +2132,8 @@ def rasterized_text(
   font = _get_pil_font(fontsize, fontname)
   if spacing is None:
     spacing = (fontsize + 6) // 4  # Estimated for 'y['; can be smaller if text lacks brackets.
-  draw_args = dict(font=font, anchor='la', spacing=spacing, align=textalign)
+  assert textalign in ('left', 'center', 'right'), textalign
+  draw_args = dict(font=font, anchor='la', spacing=spacing, align=typing.cast(Any, textalign))
 
   def get_height_width_y() -> tuple[float, float, float]:
     dummy_pil_image = PIL.Image.fromarray(np.full((1, 1, 3), 0, np.uint8))
