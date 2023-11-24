@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.1'
+__version__ = '1.3.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -340,6 +340,49 @@ def clear_functools_caches(variables: Mapping[str, Any], /, *, verbose: bool = F
         print(f'Cleared functools.cache for {name}().')
 
 
+# ** Iterator functionality
+
+
+def divide_slice(sl: slice, n: int) -> Iterator[slice]:
+  """Divide a slice `sl` into `n` subslices.
+
+  Args:
+    slice: The slice to divide.
+    n: The number of subslices.
+
+  Yields:
+    A subslice of the slice.  If the size of `sl` is less than `n`, the last subslices are empty.
+
+  >>> list(divide_slice(slice(0, 10), 2))
+  [slice(0, 5, None), slice(5, 10, None)]
+
+  >>> list(divide_slice(slice(0, 10), 3))
+  [slice(0, 4, None), slice(4, 8, None), slice(8, 10, None)]
+
+  >>> list(divide_slice(slice(1, 4), 2))
+  [slice(1, 3, None), slice(3, 4, None)]
+
+  >>> list(divide_slice(slice(1, 4), 3))
+  [slice(1, 2, None), slice(2, 3, None), slice(3, 4, None)]
+
+  >>> list(divide_slice(slice(1, 4), 4))
+  [slice(1, 2, None), slice(2, 3, None), slice(3, 4, None), slice(4, 4, None)]
+
+  >>> list(divide_slice(slice(1, 1), 1))
+  [slice(1, 1, None)]
+
+  >>> list(divide_slice(slice(1, 1), 2))
+  [slice(1, 1, None), slice(1, 1, None)]
+  """
+  subslice_size = math.ceil((sl.stop - sl.start) / n)
+  for i in range(n):
+    yield slice(
+        min(sl.start + i * subslice_size, sl.stop),
+        min(sl.start + (i + 1) * subslice_size, sl.stop),
+        sl.step,
+    )
+
+
 # ** Jupyter/IPython notebook functionality
 
 
@@ -400,11 +443,11 @@ class _CellTimer:
 
   def pre_run(self, unused_info: Any) -> None:
     """Start a timer for the notebook cell execution."""
-    self.start_time = time.monotonic()
+    self.start_time = time.perf_counter()
 
   def post_run(self, unused_result: Any) -> None:
     """Start the timer for the notebook cell execution."""
-    elapsed_time = time.monotonic() - self.start_time
+    elapsed_time = time.perf_counter() - self.start_time
     input_index = _get_ipython().execution_count - 1
     self.elapsed_times[input_index] = elapsed_time
 
@@ -572,12 +615,12 @@ def get_time_and_result(
       num_repeat = 0
       sum_time = 0.0
       min_time = math.inf
-      start = time.monotonic()
+      start = time.perf_counter_ns()
       while num_repeat < max_repeat and sum_time <= max_time:
         for _ in range(batch_size):
           result = func()
-        stop = time.monotonic()
-        elapsed = stop - start
+        stop = time.perf_counter_ns()
+        elapsed = (stop - start) / 10**9
         start = stop
         num_repeat += 1
         sum_time += elapsed
@@ -915,7 +958,7 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
 
 @contextlib.contextmanager
 def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[None]:
-  """Context that reports elapsed time.
+  """Context that reports elapsed time and multithreaded parallelism.
 
   Args:
     description: A string to print before the elapsed time.
@@ -928,12 +971,16 @@ def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[
   List comprehension example: 0.00...
   """
   if enabled:
-    start = time.monotonic()
+    start = time.perf_counter_ns()
+    process_time_start = time.process_time_ns()
     try:
       yield
     finally:
-      elapsed_time = time.monotonic() - start
-      print(f'{description}: {elapsed_time:.6f}')
+      elapsed_time = (time.perf_counter_ns() - start) / 10**9
+      process_time = (time.process_time_ns() - process_time_start) / 10**9
+      multithreading = process_time / elapsed_time
+      s_parallelism = f'  {multithreading:5.2f}x' if multithreading > 1.05 else ''
+      print(f'{description}: {elapsed_time:.6f}{s_parallelism}')
   else:
     yield
 
@@ -1897,12 +1944,12 @@ def assemble_arrays(
   """Return an output array formed as a packed grid of input arrays.
 
   Args:
-    arrays: Sequence of input arrays with the same data type and rank.  The arrays must have the
-      same trailing dimensions `arrays[].shape[len(shape):]`.  The leading dimensions
-      `arrays[].shape[:len(shape)]` may be different and these are packed together as a grid to
-      form `output.shape[:len(shape)]`.
-    shape: Dimensions of the grid used to unravel the arrays before packing. The dimensions must
-      be positive, with `prod(shape) >= len(arrays)`.  One dimension of shape may be -1, in which
+    arrays: Sequence of input arrays with the same data type and rank.  All arrays must share the
+      same trailing dimensions, i.e., identical `arrays[:].shape[len(shape):]`.  The leading
+      dimensions `arrays[:].shape[:len(shape)]` may be different and these are packed together as a
+      grid to form `output.shape[:len(shape)]`.
+    shape: Dimensions of the grid used to unravel the `arrays` before packing. The dimensions must
+      be positive, with `prod(shape) >= len(arrays)`.  One dimension of `shape` may be -1, in which
       case it is computed automatically as the smallest value such that
       `prod(shape) >= len(arrays)`.
     background: Broadcastable value used for the unassigned elements of the output array.
@@ -1920,12 +1967,12 @@ def assemble_arrays(
     obtained by packing `arrays[:].shape[:len(shape)]` into a grid of the specified `shape`.
 
   >>> assemble_arrays(
-  ...    [np.array([[1, 2, 3]]), np.array([[5], [6]]), np.array([[7]]),
-  ...     np.array([[8, 9]]), np.array([[3, 4, 5]])],
+  ...    [np.array([[1, 2, 3]]), np.array([[4], [5]]), np.array([[6]]),
+  ...     np.array([[7, 8]]), np.array([[9, 1, 2]])],
   ...    shape=(2, 3))
-  array([[1, 2, 3, 0, 5, 0, 7],
-         [0, 0, 0, 0, 6, 0, 0],
-         [8, 9, 0, 3, 4, 5, 0]])
+  array([[1, 2, 3, 0, 4, 0, 6],
+         [0, 0, 0, 0, 5, 0, 0],
+         [7, 8, 0, 9, 1, 2, 0]])
   """
   num = len(arrays)
   if num == 0:
@@ -1941,7 +1988,7 @@ def assemble_arrays(
   round_to_even2 = np.broadcast_to(np.asarray(round_to_even), len(shape))
   del align, spacing, round_to_even
 
-  # [shape] -> leading dimensions [:len(shape)] of each input array.
+  # [*shape] -> leading dimensions [:len(shape)] of each input array.
   head_dims = np.array(
       [list(array.shape[: len(shape)]) for array in arrays]
       + [[0] * len(shape)] * (math.prod(shape) - num)
@@ -1964,16 +2011,16 @@ def assemble_arrays(
     # Compute slice positions along axis as cumulative sums of slice lengths.
     axis_origins.append(spaced_lengths.cumsum())
 
-  # [shape] -> smallest corner coords in output array.
+  # [*(shape + 1)] -> start coordinates of cell in output array.
   origins = np.moveaxis(np.array(np.meshgrid(*axis_origins, indexing='ij')), 0, -1)
 
   # Initialize the output array.
   output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
   output_array = np.full(output_shape, background, arrays[0].dtype)
 
-  def offset(length: int, size: int, align: str) -> int:
-    """Return an offset to align element of given `size` within cell of `length`."""
-    remainder = length - size
+  def offset(cell_length: int, size: int, align: str) -> int:
+    """Return an offset to align element of given `size` within `cell_length`."""
+    remainder = cell_length - size
     if align not in ('start', 'stop', 'center'):
       raise ValueError(f'Alignment {align} is not recognized.')
     return 0 if align == 'start' else remainder if align == 'stop' else remainder // 2
@@ -1983,11 +2030,11 @@ def assemble_arrays(
     coords = np.unravel_index(i, shape)
     slices = []
     for axis in range(len(shape)):
-      start = origins[coords][axis]
-      length = axis_lengths[axis][coords[axis]]
-      extent = array.shape[axis]
-      aligned_start = start + offset(length, extent, align2[i][axis])
-      slices.append(slice(aligned_start, aligned_start + extent))
+      cell_start = origins[coords][axis]
+      cell_length = axis_lengths[axis][coords[axis]]
+      size = array.shape[axis]
+      aligned_start = cell_start + offset(cell_length, size, align2[i][axis])
+      slices.append(slice(aligned_start, aligned_start + size))
     output_array[tuple(slices)] = array
 
   return output_array
