@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.2'
+__version__ = '1.3.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -60,7 +60,7 @@ _UNDEFINED = object()
 _NDArray = npt.NDArray[Any]
 _DTypeLike = npt.DTypeLike
 _ArrayLike = npt.ArrayLike
-_Path = Union[str, os.PathLike]
+_Path = Union[str, os.PathLike[str]]
 
 
 # ** numba
@@ -72,7 +72,7 @@ def noop_decorator(func: _F, /) -> _F:
 
 
 @typing.overload  # Decorator with arguments.
-def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:  # type: ignore[misc]
+def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
   ...
 
 
