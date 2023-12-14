@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.3'
+__version__ = '1.3.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -406,20 +406,38 @@ def in_colab() -> bool:
     return False
 
 
+def display(obj: Any, /) -> None:
+  """In a Jupyter notebook, display the object."""
+  import IPython.display
+
+  IPython.display.display(obj)
+
+
 def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
 
-  IPython.display.display(IPython.display.HTML(text))  # type: ignore
+  display(IPython.display.HTML(text))  # type: ignore[attr-defined]
+
+
+def display_math(text: str, /) -> None:
+  """In a Jupyter notebook, display the LaTeX `text`."""
+  import IPython.display
+
+  display(IPython.display.Math(text))  # type: ignore[attr-defined]
 
 
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
   """Set the Markdown cell width in Jupyterlab to the value used by Colab."""
   # https://stackoverflow.com/a/66278615.
   style = f'{{max-width: {width}px!important;}}'
-  text = f'<style>.jp-Cell.jp-MarkdownCell {style}</style>'
-  # Also useful, for show_var_docstring().
-  text += f'<style>.jp-RenderedMarkdown {style}</style>'
+  classes = [
+      '.jp-Cell.jp-MarkdownCell',
+      '.jp-RenderedMarkdown',  # For show_var_docstring().
+      '.jp-RenderedLatex',  # For Latex output.
+  ]
+  s_classes = ', '.join(classes)
+  text = f'<style>{s_classes} {style}</style>'
   display_html(text)
 
 
@@ -605,12 +623,13 @@ def get_time_and_result(
   """
   assert callable(func) and max_repeat > 0 and max_time >= 0.0
   result = None
-  gc_was_enabled = gc.isenabled()
   batch_size = 1
   smallest_acceptable_batch_time = 0.01  # All times are in seconds.
+  gc_was_enabled = gc.isenabled()
 
   try:
     gc.disable()
+    # gc.collect()
     while True:
       num_repeat = 0
       sum_time = 0.0
@@ -957,7 +976,12 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
 
 
 @contextlib.contextmanager
-def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[None]:
+def timing(
+    description: str = 'Timing',
+    /,
+    *,
+    enabled: bool = True,
+) -> Iterator[None]:
   """Context that reports elapsed time and multithreaded parallelism.
 
   Args:
@@ -971,16 +995,27 @@ def timing(description: str = 'Timing', /, *, enabled: bool = True) -> Iterator[
   List comprehension example: 0.00...
   """
   if enabled:
-    start = time.perf_counter_ns()
-    process_time_start = time.process_time_ns()
+    gc_was_enabled = gc.isenabled()
+
     try:
-      yield
+      gc.disable()
+      # gc.collect()
+      start = time.perf_counter_ns()
+      process_time_start = time.process_time_ns()
+
+      try:
+        yield
+
+      finally:
+        elapsed_time = (time.perf_counter_ns() - start) / 10**9
+        process_time = (time.process_time_ns() - process_time_start) / 10**9
+        multithreading = process_time / elapsed_time
+        s_parallelism = f'  {multithreading:5.2f}x' if multithreading > 1.05 else ''
+        print(f'{description}: {elapsed_time:.6f}{s_parallelism}')
+
     finally:
-      elapsed_time = (time.perf_counter_ns() - start) / 10**9
-      process_time = (time.process_time_ns() - process_time_start) / 10**9
-      multithreading = process_time / elapsed_time
-      s_parallelism = f'  {multithreading:5.2f}x' if multithreading > 1.05 else ''
-      print(f'{description}: {elapsed_time:.6f}{s_parallelism}')
+      if gc_was_enabled:
+        gc.enable()
   else:
     yield
 
@@ -1937,7 +1972,7 @@ def assemble_arrays(
     shape: Sequence[int],
     *,
     background: _ArrayLike = 0,
-    align: str = 'center',
+    align: _ArrayLike = 'center',
     spacing: _ArrayLike = 0,
     round_to_even: _ArrayLike = False,
 ) -> _NDArray:
