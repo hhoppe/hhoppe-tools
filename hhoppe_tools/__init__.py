@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.4'
+__version__ = '1.3.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -669,7 +669,7 @@ def print_time(func: Callable[[], Any], /, **kwargs: Any) -> None:
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   print_time(lambda: 1)
-  ...   assert re.fullmatch(r'[0-9.]+ .?s\n', m.getvalue()), m.getvalue()
+  ...   assert re.fullmatch(r'[\d.]+ .?s\n', m.getvalue()), m.getvalue()
 
   """
   min_time = get_time(func, **kwargs)
@@ -1967,6 +1967,14 @@ def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
   return shape
 
 
+def _offset(cell_length: int, size: int, align: str) -> int:
+  """Return an offset to align element of given `size` within `cell_length`."""
+  remainder = cell_length - size
+  if align not in ('start', 'stop', 'center'):
+    raise ValueError(f'Alignment {align} is not recognized.')
+  return 0 if align == 'start' else remainder if align == 'stop' else remainder // 2
+
+
 def assemble_arrays(
     arrays: Sequence[_NDArray] | _NDArray,
     shape: Sequence[int],
@@ -1997,7 +2005,7 @@ def assemble_arrays(
       value must be broadcastable onto the shape `[len(shape)]`.
 
   Returns:
-    A numpy output array of the same type as the input 'arrays', with
+    A numpy output array of the same type as the input `arrays`, with
     `output.shape = packed_shape + arrays[0].shape[len(shape):]`, where `packed_shape` is
     obtained by packing `arrays[:].shape[:len(shape)]` into a grid of the specified `shape`.
 
@@ -2053,13 +2061,6 @@ def assemble_arrays(
   output_shape = tuple(origins[(-1,) * len(shape)]) + tail_dims
   output_array = np.full(output_shape, background, arrays[0].dtype)
 
-  def offset(cell_length: int, size: int, align: str) -> int:
-    """Return an offset to align element of given `size` within `cell_length`."""
-    remainder = cell_length - size
-    if align not in ('start', 'stop', 'center'):
-      raise ValueError(f'Alignment {align} is not recognized.')
-    return 0 if align == 'start' else remainder if align == 'stop' else remainder // 2
-
   # Copy each input array to its packed, aligned location in the output array.
   for i, array in enumerate(arrays):
     coords = np.unravel_index(i, shape)
@@ -2068,9 +2069,60 @@ def assemble_arrays(
       cell_start = origins[coords][axis]
       cell_length = axis_lengths[axis][coords[axis]]
       size = array.shape[axis]
-      aligned_start = cell_start + offset(cell_length, size, align2[i][axis])
+      aligned_start = cell_start + _offset(cell_length, size, align2[i, axis])
       slices.append(slice(aligned_start, aligned_start + size))
     output_array[tuple(slices)] = array
+
+  return output_array
+
+
+def stack_arrays(
+    arrays: Sequence[_ArrayLike],
+    *,
+    background: _ArrayLike = 0,
+    align: _ArrayLike = 'center',
+) -> _NDArray:
+  """Return an output array formed by stacking uneven input arrays (generalizing `np.stack`).
+
+  Args:
+    arrays: Sequence of input arrays with the same data type and rank.
+    background: Broadcastable value used for the unassigned elements of the output array.
+    align: Relative position (`'center'`, `'start'`, or `'stop'`) for each input array and for
+      each axis within its output grid cell.  The value must be broadcastable onto the shape
+      `[len(arrays), arrays[0].ndim]`.
+
+  Returns:
+    A numpy output array of the same type as the input `arrays`, with an extra first dimension,
+    and whose later dimensions are the max of the corresponding dimensions in `arrays`.
+
+  >>> stack_arrays([np.array([1, 2]), np.array([4, 5, 6]), np.array([7])])
+  array([[1, 2, 0],
+         [4, 5, 6],
+         [0, 7, 0]])
+  """
+  arrays2 = [np.asarray(array) for array in arrays]
+  del arrays
+  num = len(arrays2)
+  if num == 0:
+    raise ValueError('There must be at least one input array.')
+  if any(array.dtype != arrays2[0].dtype for array in arrays2):
+    raise ValueError(f'Arrays {arrays2} have different types.')
+  if any(array.ndim != arrays2[0].ndim for array in arrays2):
+    raise ValueError(f'Arrays {arrays2} have different ranks.')
+  align2 = np.broadcast_to(np.asarray(align), (num, arrays2[0].ndim))
+  del align
+
+  # Initialize the output array.
+  dims = tuple(max(ds) for ds in zip(*(array.shape for array in arrays2)))
+  output_array = np.full((num, *dims), background, arrays2[0].dtype)
+
+  # Copy each input array to its aligned location in the output array.
+  for i, array in enumerate(arrays2):
+    slices = []
+    for axis, size in enumerate(array.shape):
+      aligned_start = _offset(dims[axis], size, align2[i, axis])
+      slices.append(slice(aligned_start, aligned_start + size))
+    output_array[(i, *slices)] = array
 
   return output_array
 
@@ -2235,7 +2287,7 @@ def rasterized_text(
   shape = math.ceil(height + margin[0].sum()), math.ceil(max(width + margin[1].sum(), min_width))
   pil_image = PIL.Image.fromarray(np.full((*shape, 3), background, dtype=np.uint8))
   draw = PIL.ImageDraw.Draw(pil_image)
-  xy = margin[1][0], margin[0][0] + y
+  xy = margin[1, 0], margin[0, 0] + y
   draw.text(xy, text, **draw_args, fill=foreground)
   image = np.array(pil_image)
   return image
@@ -2243,7 +2295,7 @@ def rasterized_text(
 
 def overlay_text(
     image: _NDArray,
-    yx: tuple[int, int],
+    yx: _ArrayLike,
     text: str,
     align: str = 'tl',  # '[tmb][lcr]'.
     **kwargs: Any,
@@ -2252,7 +2304,7 @@ def overlay_text(
 
   Args:
     image: uint8 RGB image whose contents are overlaid with a rasterized text box.
-    yx: Tuple `(y, x)` of pixel coordinates for placement of the text box, according `align`.
+    yx: Pixel coordinates `y, x` for placement of the text box, according `align`.
     text: String to rasterize.  Embedded newlines indicate multiline text.
     align: Two-character alignment code [tmb][lcr].  The first character specifies vertical
       alignment about `yx[0]` as `'t'` for top, `'m'` for middle, or `'b'` for bottom.  The second
@@ -2268,7 +2320,8 @@ def overlay_text(
   import PIL
 
   assert image.ndim == 3 and image.dtype == np.uint8
-  assert len(yx) == 2
+  yx = np.asarray(yx)
+  assert yx.shape == (2,)
   assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
   if tuple(map(int, PIL.__version__.split('.'))) < (8, 0):
     warnings.warn('Pillow<8.0 lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')

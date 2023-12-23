@@ -100,6 +100,34 @@ def test_selective_lru_cache() -> None:
   f(1, kw0=False, kw1=True, kw2=True, kw3=False, expected=[])
 
 
+def test_stack_arrays() -> None:
+  """Test stack_arrays()."""
+  arrays = [[1, 2], [4, 5, 6], [7]]
+  assert np.all(hh.stack_arrays(arrays) == [[1, 2, 0], [4, 5, 6], [0, 7, 0]])
+  assert np.all(hh.stack_arrays(arrays, align='start') == [[1, 2, 0], [4, 5, 6], [7, 0, 0]])
+  assert np.all(hh.stack_arrays(arrays, align='stop') == [[0, 1, 2], [4, 5, 6], [0, 0, 7]])
+
+  arrays2 = [np.array([[1, 2, 3]]), np.array([[4], [5], [6]]), np.array([[7, 8], [9, 7]])]
+  expected = [
+      [[0, 0, 0], [0, 0, 0], [1, 2, 3]],
+      [[0, 0, 4], [0, 0, 5], [0, 0, 6]],
+      [[0, 0, 0], [0, 7, 8], [0, 9, 7]],
+  ]
+  assert np.all(hh.stack_arrays(arrays2, align='stop') == expected)
+  expected = [
+      [[1, 2, 3], [0, 0, 0], [0, 0, 0]],
+      [[0, 0, 4], [0, 0, 5], [0, 0, 6]],
+      [[0, 7, 8], [0, 9, 7], [0, 0, 0]],
+  ]
+  assert np.all(hh.stack_arrays(arrays2, align=['start', 'stop']) == expected)
+  expected = [
+      [[1, 2, 3], [0, 0, 0], [0, 0, 0]],
+      [[0, 4, 0], [0, 5, 0], [0, 6, 0]],
+      [[0, 0, 0], [0, 7, 8], [0, 9, 7]],
+  ]
+  assert np.all(hh.stack_arrays(arrays2, align=[['start'], ['center'], ['stop']]) == expected)
+
+
 # Would require adding a "test_requires=['IPython']" in setup.py.
 #
 # def test_celltimer_is_noop_outside_notebook(capfd):
