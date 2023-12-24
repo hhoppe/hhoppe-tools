@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.5'
+__version__ = '1.3.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -47,7 +47,7 @@ import unittest.mock  # pylint: disable=unused-import # noqa
 import warnings
 
 import numpy as np
-import numpy.typing as npt
+import numpy.typing
 
 # For np.broadcast_to(), etc.
 # mypy: allow-untyped-calls
@@ -57,9 +57,9 @@ _F = TypeVar('_F', bound='Callable[..., Any]')
 
 _UNDEFINED = object()
 
-_NDArray = npt.NDArray[Any]
-_DTypeLike = npt.DTypeLike
-_ArrayLike = npt.ArrayLike
+_NDArray = numpy.typing.NDArray[Any]
+_DTypeLike = numpy.typing.DTypeLike
+_ArrayLike = numpy.typing.ArrayLike
 _Path = Union[str, os.PathLike[str]]
 
 
@@ -2424,6 +2424,38 @@ class UnionFind(Generic[_T]):
 # ** Plotting
 
 
+def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
+  """Return dictionary of 2D coordinates for layout of graph nodes."""
+  import networkx
+
+  try:
+    args = '-Gstart=1'  # Deterministically seed the graphviz random number generator.
+    return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
+  except ImportError:
+    pass
+  try:
+    return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
+  except ImportError:
+    pass
+  print('Cannot reach graphviz; resorting to simpler layout.')
+  return networkx.kamada_kawai_layout(graph)
+
+
+def rotate_pos(
+    pos: dict[_T, tuple[float, float]], special_node: _T, angle: float = 0.0
+) -> dict[_T, tuple[float, float]]:
+  """Rotate `pos` dict of `x, y` coords (right, up) so special_node is `angle` clw from -X."""
+  special_index = list(pos).index(special_node)
+  points = np.asarray(list(pos.values()))
+  mean_point = points.mean(0)
+  translated_points = points - mean_point
+  special_point = translated_points[special_index]
+  angle = math.tau * 0.5 - np.arctan2(special_point[1], special_point[0]) - angle
+  rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+  rotated_points = translated_points @ rotation_matrix.T + mean_point
+  return {node: tuple(rotated_point) for node, rotated_point in zip(pos, rotated_points)}
+
+
 def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
   """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
   # isinstance(fig, matplotlib.figure.Figure)
@@ -2441,6 +2473,151 @@ def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
     else:
       image = (image[..., :3] * alpha + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
     return image
+
+
+def image_from_plotly(fig: Any, **kwargs: Any) -> _NDArray:
+  """Return an image obtained by rasterizing a plotly figure."""
+  import mediapy as media
+
+  return media.decompress_image(fig.to_image(format='png', **kwargs))[..., :3]
+
+
+def _from_xyz(d: dict[str, float], /) -> _NDArray:
+  """Return an [x, y, z] array from a dict(x=x, y=y, z=z)."""
+  return np.array([d['x'], d['y'], d['z']], float)
+
+
+def _to_xyz(a: _ArrayLike, /) -> dict[str, float]:
+  """Return a dict(x=x, y=y, z=z) from an [x, y, z] array."""
+  x, y, z = np.asarray(a)
+  return dict(x=x, y=y, z=z)
+
+
+def mesh3d_from_height(
+    grid: _ArrayLike, /, *, facecolor: Any = None, color: Any = None, **kwargs: Any
+) -> Any:
+  """Return a plotly surface formed by extruding square columns from the `grid` height field.
+
+  It is crucial to set lighting=dict(facenormalsepsilon=1e-15) to handle degenerate triangles.
+  """
+  import plotly.graph_objects as go
+
+  grid = np.asarray(grid)
+  assert grid.ndim == 2
+  assert not (color is not None and facecolor is None)
+  yy, xx = np.arange(grid.shape[0] + 1).repeat(2), np.arange(grid.shape[1] + 1).repeat(2)
+  y, x = yy.repeat(len(xx)), np.tile(xx, len(yy))
+  z = np.pad(grid.repeat(2, axis=0).repeat(2, axis=1), 1, constant_values=0.0).ravel()
+  i, j, k = (
+      [
+          y2 * len(xx) + x2
+          for y1, x1 in np.ndindex((len(yy) - 1, len(xx) - 1))
+          for y2, x2 in ((y1 + c0, x1 + c1), (y1 + c2, x1 + c3))
+      ]
+      for c0, c1, c2, c3 in [(0, 0, 1, 1), (0, 1, 1, 0), (1, 1, 0, 0)]
+  )
+
+  if facecolor is not None:
+    facecolor2 = np.full(((grid.shape[0] * 2 + 1) * (grid.shape[1] * 2 + 1) * 2, 3), color)
+    for y0, x0 in np.ndindex(facecolor.shape[:2]):
+      index = ((y0 * 2 + 1) * (grid.shape[1] * 2 + 1) + x0 * 2 + 1) * 2
+      facecolor2[index : index + 2] = facecolor[y0, x0]
+    facecolor = facecolor2
+
+  intensity = z if facecolor is None else None
+  return go.Mesh3d(x=x, y=y, z=z, i=i, j=j, k=k, intensity=intensity, facecolor=facecolor, **kwargs)
+
+
+def mesh3d_from_cubes(
+    cubes: Iterable[tuple[float, float, float, float, float, float]], facecolors: Any
+) -> Any:
+  """Return a plotly surface formed by a union of colored cubes."""
+  import plotly.graph_objects as go
+
+  x, y, z, i, j, k, colors = [], [], [], [], [], [], []
+  for index, (cube, facecolor) in enumerate(zip(cubes, facecolors)):
+    x0, y0, z0, x1, y1, z1 = cube
+    x.extend([x0, x0, x1, x1, x0, x0, x1, x1])
+    y.extend([y0, y1, y1, y0, y0, y1, y1, y0])
+    z.extend([z0, z0, z0, z0, z1, z1, z1, z1])
+    i.extend([index * 8 + t for t in [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]])
+    j.extend([index * 8 + t for t in [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]])
+    k.extend([index * 8 + t for t in [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]])
+    colors.extend([facecolor] * 12)
+  return go.Mesh3d(x=x, y=y, z=z, i=i, j=j, k=k, facecolor=colors, flatshading=True)
+
+
+def _vector_slerp(a: _ArrayLike, b: _ArrayLike, t: float) -> _NDArray:
+  """Spherically interpolate two unit vectors, as in https://en.wikipedia.org/wiki/Slerp ."""
+  a, b = np.asarray(a), np.asarray(b)
+  angle = max(math.acos(np.dot(a, b)), 1e-10)
+  return (math.sin((1.0 - t) * angle) * a + math.sin(t * angle) * b) / math.sin(angle)
+
+
+def wobble_video(fig: Any, /, *, amplitude: float = 1.0) -> list[_NDArray]:
+  """Return a looping video from a 3D plotly figure by orbiting the eye position left/right.
+
+  Args:
+    fig: A `plotly` figure containing a 3D scene.
+    amplitude: Magnitude of the angle displacement, in degrees, by which the eye is rotated.
+  """
+  import plotly
+
+  rotation_fractions = [0, 2 / 3, 1, 1, 1, 2 / 3, 0, -2 / 3, -1, -1, -1, -2 / 3]
+  camera = fig['layout']['scene']['camera']
+  if isinstance(camera, plotly.graph_objs.layout.scene.Camera):
+    camera = camera.to_plotly_json()
+
+  eye = _from_xyz(camera['eye'])
+  up = normalize(_from_xyz(camera.get('up', dict(x=0, y=0, z=1))))
+  center = _from_xyz(camera.get('center', dict(x=0, y=0, z=0)))
+  from_center = eye - center
+  planar_from_center = from_center - up * np.dot(up, from_center)
+  unit_planar_from_center = normalize(planar_from_center)
+  orthogonal: Any = np.cross(up, unit_planar_from_center)
+
+  image_for_rotation = {}
+  for rotation_fraction in set(rotation_fractions):
+    angle = rotation_fraction * (amplitude / 360 * math.tau)
+    rotation = np.array([math.cos(angle), math.sin(angle)])
+    new_unit_planar_from_center = rotation @ [unit_planar_from_center, orthogonal]
+    new_planar_from_center = new_unit_planar_from_center * np.linalg.norm(planar_from_center)
+    new_eye = eye + (new_planar_from_center - planar_from_center)
+    camera2 = camera.copy()
+    camera2['eye'] = _to_xyz(new_eye)
+    fig.layout.update(scene_camera=camera2)
+    image_for_rotation[rotation_fraction] = image_from_plotly(fig)
+
+  fig.layout.update(scene_camera=camera)
+  return [image_for_rotation[rotation_fraction] for rotation_fraction in rotation_fractions]
+
+
+def tilt_video(fig: Any) -> list[_NDArray]:
+  """Return a looping video from a 3D plotly figure by displacing the eye towards `camera.up`."""
+  import plotly
+
+  rotation_fractions = [0, 0, 0, 1 / 6, 1 / 2, 5 / 6, 0.999, 0.999, 0.999, 5 / 6, 1 / 2, 1 / 6]
+  camera = fig['layout']['scene']['camera']
+  if isinstance(camera, plotly.graph_objs.layout.scene.Camera):
+    camera = camera.to_plotly_json()
+
+  eye = _from_xyz(camera['eye'])
+  up = normalize(_from_xyz(camera.get('up', dict(x=0, y=0, z=1))))
+  center = _from_xyz(camera.get('center', dict(x=0, y=0, z=0)))
+  from_center = eye - center
+  unit_from_center = normalize(from_center)
+
+  image_for_rotation = {}
+  for rotation_fraction in set(rotation_fractions):
+    new_unit_from_center = _vector_slerp(unit_from_center, up, rotation_fraction)
+    new_eye = center + np.linalg.norm(from_center) * new_unit_from_center
+    camera2 = camera.copy()
+    camera2['eye'] = _to_xyz(new_eye)
+    fig.layout.update(scene_camera=camera2)
+    image_for_rotation[rotation_fraction] = image_from_plotly(fig)
+
+  fig.layout.update(scene_camera=camera)
+  return [image_for_rotation[rotation_fraction] for rotation_fraction in rotation_fractions]
 
 
 # ** Search algorithms

@@ -9,9 +9,10 @@ from typing import Any
 import numpy as np
 import hhoppe_tools as hh
 
+# pylint: disable=missing-function-docstring, protected-access
+
 
 def test_string_grid_string_roundtrip() -> None:
-  """Test conversion from string to grid and back."""
   s = '..A.\nC.#.\n.AA.\n'
   g = hh.grid_from_string(s, {'.': 0, '#': 1, 'A': 11, 'C': 12}, dtype=np.uint8)
   hh.check_eq(g.dtype, np.uint8)
@@ -32,7 +33,6 @@ def test_string_grid_string_roundtrip() -> None:
 
 
 def test_union_find() -> None:
-  """Test UnionFind class."""
   union_find = hh.UnionFind[int]()
   hh.check_eq(union_find.same(12, 12), True)
   hh.check_eq(union_find.same(12, 23), False)
@@ -51,8 +51,6 @@ def test_union_find() -> None:
 
 
 def test_noop_decorator() -> None:
-  """Test the `noop_decorator`."""
-
   @hh.noop_decorator
   def func1(i: int) -> int:
     return i * 2
@@ -76,12 +74,10 @@ def test_noop_decorator() -> None:
 
 
 def test_selective_lru_cache() -> None:
-  """Test `selective_lru_cache` where we ignore two keyword parameters."""
   called_args = []
 
   @hh.selective_lru_cache(maxsize=None, ignore_kwargs=('kw1', 'kw2'))
   def func1(arg1: int, *, kw0: bool, kw1: bool, kw2: bool, kw3: bool = False) -> int:
-    """Dummy test function."""
     nonlocal called_args
     called_args = [arg1, kw0, kw1, kw2, kw3]
     return arg1 + int(kw0) + int(kw3)
@@ -101,7 +97,6 @@ def test_selective_lru_cache() -> None:
 
 
 def test_stack_arrays() -> None:
-  """Test stack_arrays()."""
   arrays = [[1, 2], [4, 5, 6], [7]]
   assert np.all(hh.stack_arrays(arrays) == [[1, 2, 0], [4, 5, 6], [0, 7, 0]])
   assert np.all(hh.stack_arrays(arrays, align='start') == [[1, 2, 0], [4, 5, 6], [7, 0, 0]])
@@ -126,6 +121,14 @@ def test_stack_arrays() -> None:
       [[0, 0, 0], [0, 7, 8], [0, 9, 7]],
   ]
   assert np.all(hh.stack_arrays(arrays2, align=[['start'], ['center'], ['stop']]) == expected)
+
+
+def test_from_to_xyz() -> None:
+  assert np.all(hh._from_xyz(hh._to_xyz([0.5, 1, 2])) == [0.5, 1, 2])
+
+
+def test_vector_slerp() -> None:
+  assert np.allclose(hh._vector_slerp([0, 1], [1, 0], 1 / 3), [0.5, np.cos(np.radians(30))])
 
 
 # Would require adding a "test_requires=['IPython']" in setup.py.
