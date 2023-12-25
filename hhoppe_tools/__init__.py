@@ -2433,10 +2433,11 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
     return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
   except ImportError:
     pass
-  try:
-    return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
-  except ImportError:
-    pass
+  if 0:  # pydot is deprecated; https://github.com/networkx/networkx/issues/5723
+    try:
+      return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
+    except ImportError:
+      pass
   print('Cannot reach graphviz; resorting to simpler layout.')
   return networkx.kamada_kawai_layout(graph)
 
