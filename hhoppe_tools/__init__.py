@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.7'
+__version__ = '1.3.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2569,16 +2569,28 @@ def _vector_slerp(a: _ArrayLike, b: _ArrayLike, t: float) -> _NDArray:
   return (math.sin((1.0 - t) * angle) * a + math.sin(t * angle) * b) / math.sin(angle)
 
 
-def wobble_video(fig: Any, /, *, amplitude: float = 1.0) -> list[_NDArray]:
+def wobble_video(
+    fig: Any,
+    /,
+    *,
+    amplitude: float = 1.0,
+    num_frames: int = 12,
+    quantization: float = 1 / 3,
+) -> list[_NDArray]:
   """Return a looping video from a 3D plotly figure by orbiting the eye position left/right.
 
   Args:
     fig: A `plotly` figure containing a 3D scene.
     amplitude: Magnitude of the angle displacement, in degrees, by which the eye is rotated.
+    num_frames: Length of the returned array of frames.
+    quantization: Granularity of the orbit angles, to allow frame reuse (e.g. for GIF).
   """
   import plotly
 
-  rotation_fractions = [0, 2 / 3, 1, 1, 1, 2 / 3, 0, -2 / 3, -1, -1, -1, -2 / 3]
+  # Default is [0, 2 / 3, 1, 1, 1, 2 / 3, 0, -2 / 3, -1, -1, -1, -2 / 3].
+  rotation_fractions = np.round(
+      (np.sin(np.arange(num_frames) / num_frames * math.tau) * 1.05).clip(-1, 1) / quantization
+  ) * quantization
   camera = fig['layout']['scene']['camera']
   if isinstance(camera, plotly.graph_objs.layout.scene.Camera):
     camera = camera.to_plotly_json()
