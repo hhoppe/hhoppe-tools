@@ -2476,6 +2476,7 @@ def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
   # isinstance(fig, matplotlib.figure.Figure)
   with io.BytesIO() as io_buf:
     # savefig(bbox_inches='tight', pad_inches=0.0) changes dims, so would require format='png'.
+    # See https://github.com/matplotlib/matplotlib/issues/17118#issuecomment-612988008
     fig.savefig(io_buf, format='raw', dpi=fig.dpi)
     shape = int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), 4  # RGBA.
     image = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
@@ -2588,9 +2589,12 @@ def wobble_video(
   import plotly
 
   # Default is [0, 2 / 3, 1, 1, 1, 2 / 3, 0, -2 / 3, -1, -1, -1, -2 / 3].
-  rotation_fractions = np.round(
-      (np.sin(np.arange(num_frames) / num_frames * math.tau) * 1.05).clip(-1, 1) / quantization
-  ) * quantization
+  rotation_fractions = (
+      np.round(
+          (np.sin(np.arange(num_frames) / num_frames * math.tau) * 1.05).clip(-1, 1) / quantization
+      )
+      * quantization
+  )
   camera = fig['layout']['scene']['camera']
   if isinstance(camera, plotly.graph_objs.layout.scene.Camera):
     camera = camera.to_plotly_json()
