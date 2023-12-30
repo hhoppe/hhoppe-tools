@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.8'
+__version__ = '1.3.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1550,7 +1550,7 @@ def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _
     array: Input data.
     pad: Sequence of tuples representing pad widths before and after each desired dimension.
       The length of `pad` may be less than `array.ndim`.  If `pad` is scalar, it is broadcast
-      onto the shape `(array.ndim - value.ndim, 2)`.
+      onto the shape `(array.ndim - value.ndim, 2)`.  If `pad` is 1-dim, each entry is duplicated.
     value: Value to use for padding.  It must be scalar if `pad` is scalar; otherwise its shape
       must equal `array.shape[len(pad):]`.
 
@@ -1576,6 +1576,10 @@ def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _
   array([[0, 1, 2],
          [3, 4, 5],
          [6, 7, 8]])
+
+  >>> pad_array(array1, (0, 1), 9)
+  array([[9, 0, 1, 2, 9],
+         [9, 3, 4, 5, 9]])
 
   >>> pad_array([[[1, 2], [3, 4]],
   ...            [[5, 6], [7, 8]]], ((0, 1), (1, 0)), (9, 0))
@@ -1603,6 +1607,8 @@ def pad_array(array: _ArrayLike, /, pad: _ArrayLike, value: _ArrayLike = 0) -> _
   array, pad, value = np.asarray(array), np.asarray(pad), np.asarray(value)
   if pad.ndim == 0:
     pad = np.broadcast_to(pad, (array.ndim - value.ndim, 2))
+  elif pad.ndim == 1:
+    pad = np.broadcast_to(pad[:, None], (array.ndim - value.ndim, 2))
   check_eq(value.shape, array.shape[len(pad) :])
   # Create a ragged array, so use dtype=object.
   cval = np.array([[value, value]] * len(pad) + [[0, 0]] * (array.ndim - len(pad)), dtype=object)
@@ -2473,22 +2479,67 @@ def rotate_layout_so_principal_component_is_on_x_axis(
 
 def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
   """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
-  # isinstance(fig, matplotlib.figure.Figure)
+  # assert isinstance(fig, matplotlib.figure.Figure)
   with io.BytesIO() as io_buf:
     # savefig(bbox_inches='tight', pad_inches=0.0) changes dims, so would require format='png'.
     # See https://github.com/matplotlib/matplotlib/issues/17118#issuecomment-612988008
     fig.savefig(io_buf, format='raw', dpi=fig.dpi)
     shape = int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), 4  # RGBA.
     image = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
-    # Composite the image  over the background color.
-    background2 = np.broadcast_to(np.asarray(background), 3)
-    alpha = image[..., 3:4] / 255
-    premultiplied_alpha = False  # As observed.
-    if premultiplied_alpha:
-      image = (image[..., :3] + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+    if np.all(image[..., 3] == 255):
+      image = image[..., :3]
     else:
-      image = (image[..., :3] * alpha + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+      # Composite the image  over the background color.
+      background2 = np.broadcast_to(np.asarray(background), 3)
+      alpha = image[..., 3:4] / 255
+      premultiplied_alpha = False  # As observed.
+      if premultiplied_alpha:
+        image = (image[..., :3] + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+      else:
+        image = (image[..., :3] * alpha + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
     return image
+
+
+def images_from_animation(animation: Any) -> list[_NDArray]:
+  """Return a list of RGB images obtained by rendering the matplotlib `animation`."""
+  # assert isinstance(animation, matplotlib.animation.Animation)
+  import matplotlib.animation
+
+  class ImageListWriter(matplotlib.animation.AbstractMovieWriter):
+    """Custom writer to capture image frames."""
+
+    def __init__(self) -> None:
+      super().__init__()
+      self.images: list[_NDArray] = []
+      self.fig: Any  # matplotlib.figure.Figure
+
+    def setup(self, fig: Any, outfile: Any, dpi: float | None = None) -> None:
+      del outfile
+      self.fig = fig
+      assert dpi is None or dpi == self.fig.dpi
+
+    def grab_frame(self, **_: Any) -> None:
+      if 0:  # Unnecessary.
+        self.fig.canvas.draw()
+
+      if 1:
+        image = np.array(self.fig.canvas.buffer_rgba())  # Not np.asarray() because we need a copy.
+        assert np.all(image[:, :, 3] == 255)
+        image = image[:, :, :3]
+
+      else:
+        # Using fig.savefig() is ~1.7x slower; it is used in *Writer.grab_frame() in
+        # https://github.com/matplotlib/matplotlib/blob/v3.8.2/lib/matplotlib/animation.py
+        image = image_from_plt(self.fig)
+
+      self.images.append(image)
+
+    def finish(self) -> None:
+      pass
+
+  writer = ImageListWriter()
+  animation.save(None, writer=writer)  # dpi is taken automatically from `fig`.
+  return writer.images
 
 
 def image_from_plotly(fig: Any, **kwargs: Any) -> _NDArray:
