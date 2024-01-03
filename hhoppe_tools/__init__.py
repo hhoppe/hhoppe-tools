@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.3.9'
+__version__ = '1.4.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -392,6 +392,17 @@ def _get_ipython() -> Any:
   return IPython.get_ipython()  # type: ignore
 
 
+def in_notebook() -> bool:
+  """Return True if running inside an Jupyter/IPython notebook.
+
+  >>> in_notebook()
+  False
+  """
+  import IPython
+
+  return IPython.get_ipython() is not None  # type: ignore
+
+
 def in_colab() -> bool:
   """Return True if running inside Google Colab.
 
@@ -492,7 +503,7 @@ def start_timing_notebook_cells() -> None:
 
   Place in an early notebook cell.  See also `show_notebook_cell_top_times`.
   """
-  if _get_ipython():
+  if in_notebook():
     if _CellTimer.instance:
       _CellTimer.instance.close()
     _CellTimer.instance = _CellTimer()
@@ -2480,6 +2491,9 @@ def rotate_layout_so_principal_component_is_on_x_axis(
 def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
   """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
   # assert isinstance(fig, matplotlib.figure.Figure)
+  # One challenge is that matplotlib.get_backend() == module://matplotlib_inline.backend_inline
+  # when it runs in a notebook, but matplotlib.get_backend() == 'agg' when it runs in bash,
+  # and this gives rise to subtle differences.  Changing backend temporarily is hard.
   with io.BytesIO() as io_buf:
     # savefig(bbox_inches='tight', pad_inches=0.0) changes dims, so would require format='png'.
     # See https://github.com/matplotlib/matplotlib/issues/17118#issuecomment-612988008
@@ -2807,6 +2821,30 @@ def is_executable(path: _Path, /) -> bool:
 
 
 # ** OS commands
+
+
+def get_env_bool(name: str, /, default: bool = False) -> bool:
+  """Return boolean defined from environment variable `name` or else `default`.
+
+  >>> get_env_bool('NON_EXISTENT_VAR')
+  False
+  >>> get_env_bool('NON_EXISTENT_VAR', True)
+  True
+
+  >>> os.environ['EXISTENT_VAR'] = '1'
+  >>> get_env_bool('EXISTENT_VAR')
+  True
+  >>> os.environ.pop('EXISTENT_VAR')
+  '1'
+  >>> get_env_bool('EXISTENT_VAR')
+  False
+  """
+  true_ = ['true', '1', 't']
+  false_ = ['false', '0', 'f']
+  value: str = os.environ.get(name, '01'[default]).lower()
+  if value not in true_ + false_:
+    raise ValueError(f'Invalid {value=} for environment variable {name=}.')
+  return value in true_
 
 
 def run(args: str | Sequence[str], /) -> None:
