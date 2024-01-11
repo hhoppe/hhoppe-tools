@@ -343,6 +343,42 @@ def clear_functools_caches(variables: Mapping[str, Any], /, *, verbose: bool = F
 # ** Iterator functionality
 
 
+def mirror_loop(sequence: Sequence[_T], duplicate_ends: bool = False) -> Iterator[_T]:
+  """Yields elements from 'sequence' alternating forward and backward.
+
+  Examples:
+    >>> tuple(itertools.islice(mirror_loop((1, 2, 3, 4)), 10))
+    (1, 2, 3, 4, 3, 2, 1, 2, 3, 4)
+
+    >>> tuple(itertools.islice(mirror_loop((1, 2, 3, 4), duplicate_ends=True), 10))
+    (1, 2, 3, 4, 4, 3, 2, 1, 1, 2)
+
+    >>> tuple(itertools.islice(mirror_loop((1, 2)), 5))
+    (1, 2, 1, 2, 1)
+
+    >>> tuple(itertools.islice(mirror_loop((1, 2), duplicate_ends=True), 5))
+    (1, 2, 2, 1, 1)
+
+    >>> tuple(itertools.islice(mirror_loop((1,)), 5))
+    (1, 1, 1, 1, 1)
+
+    >>> tuple(itertools.islice(mirror_loop((1,), duplicate_ends=True), 5))
+    (1, 1, 1, 1, 1)
+
+  Args:
+    sequence: Input elements; must be non-empty.
+    duplicate_ends: boolean indicating if the first and last elements are duplicated in the output.
+      (True leads to a more uniform usage of the elements but successive identical elements may
+      affect inter-element statistics.)
+  """
+  length = len(sequence)
+  if length == 0:
+    raise ValueError('Accessing empty sequence.')
+  while True:
+    yield from sequence
+    yield from sequence[::-1] if duplicate_ends else sequence[1:-1][::-1]
+
+
 def divide_slice(sl: slice, n: int) -> Iterator[slice]:
   """Divide a slice `sl` into `n` subslices.
 
