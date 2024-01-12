@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.0'
+__version__ = '1.4.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -451,6 +451,14 @@ def in_colab() -> bool:
     return True
   except ModuleNotFoundError:
     return False
+
+
+def no_vertical_scroll() -> None:
+  """If in Colab, omit vertical scrollbar in cell output."""
+  if in_colab():
+    import google.colab.output  # pylint: disable=import-error,no-name-in-module # pytype:disable=import-error
+
+    google.colab.output.no_vertical_scroll()  # pylint: disable=c-extension-no-member
 
 
 def display(obj: Any, /) -> None:
