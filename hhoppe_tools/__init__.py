@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.1'
+__version__ = '1.4.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -761,7 +761,7 @@ def prun(
   """
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
-  site_packages = list(np.__path__)[0][:-5]
+  site_packages = list(np.__path__)[0][:-5].replace('\\', '/')
   assert site_packages.endswith(('/site-packages/', '/dist-packages/'))
 
   profile = cProfile.Profile()
@@ -1742,8 +1742,8 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
   >>> bounding_crop([0, 0, 1, 0], 0, margin=1)
   array([0, 1, 0])
 
-  >>> bounding_crop([0, 0, 0, 0], 0)
-  array([], dtype=int64)
+  >>> bounding_crop([0, 0, 0, 0], 0).tolist()  # array([], dtype=int64) in Unix, dtype=int32 in Win.
+  []
 
   >>> bounding_crop([0, 0, 0, 0], 1)
   array([0, 0, 0, 0])
@@ -1771,7 +1771,7 @@ def _np_int_from_ch(
   # Adapted from https://stackoverflow.com/a/49566980
   a = np.asarray(a).view(np.int32)
   max_ch = max(a.max(), max(ord(ch) for ch in int_from_ch))
-  lookup = np.zeros(max_ch + 1, dtype or np.int64)
+  lookup = np.zeros(max_ch + 1, dtype or np.int_)
   for ch, value in int_from_ch.items():
     lookup[ord(ch)] = value
   return lookup[a]
@@ -1795,9 +1795,9 @@ def grid_from_string(
          ['B', '.', 'A']], dtype='<U1'), 24)
 
   >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2})
-  >>> g, g.nbytes
+  >>> g, g.size, g.dtype == np.int_
   (array([[0, 0, 2],
-         [2, 0, 1]]), 48)
+         [2, 0, 1]]), 6, True)
 
   >>> g = grid_from_string(string, {'.': 0, 'A': 1, 'B': 2}, np.uint8)
   >>> g, g.nbytes
@@ -2307,14 +2307,14 @@ def rasterized_text(
   >>> image = rasterized_text('Hello')
   >>> image[0][0]
   array([255, 255, 255], dtype=uint8)
-  >>> image.shape
-  (17, 39, 3)
+  >>> 16 <= image.shape[0] <= 18, 38 <= image.shape[1] <= 40, image.shape[2]
+  (True, True, 3)
 
   >>> image = rasterized_text('Hello', background=250, margin=3)
   >>> image[0][0]
   array([250, 250, 250], dtype=uint8)
-  >>> image.shape
-  (18, 43, 3)
+  >>> 17 <= image.shape[0] <= 19, 42 <= image.shape[1] <= 44, image.shape[2]
+  (True, True, 3)
   """
   import PIL.Image
   import PIL.ImageDraw
@@ -2856,7 +2856,7 @@ def is_executable(path: _Path, /) -> bool:
   ...   path = pathlib.Path(dir) / 'file'
   ...   _ = path.write_text('test', encoding='utf-8')
   ...   check_eq(is_executable(path), False)
-  ...   if sys.platform != 'cygwin':
+  ...   if sys.platform not in ['cygwin', 'win32']:
   ...     # Copy R bits to X bits:
   ...     path.chmod(path.stat().st_mode | ((path.stat().st_mode & 0o444) >> 2))
   ...     check_eq(is_executable(path), True)
@@ -2905,7 +2905,7 @@ def run(args: str | Sequence[str], /) -> None:
   >>> with tempfile.TemporaryDirectory() as dir:
   ...   path = pathlib.Path(dir) / 'file'
   ...   run(f'echo ab >{path}')
-  ...   assert path.is_file() and 3 <= path.stat().st_size <= 4
+  ...   assert path.is_file() and 3 <= path.stat().st_size <= 5
   """
   proc = subprocess.run(
       args,
