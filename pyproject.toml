@@ -73,7 +73,7 @@ disable = [
 reports = false
 score = false
 recursive = true
-ignore-paths = [".ipynb_checkpoints"]
+ignore-paths = [".*ipynb_checkpoints"]
 # py-version = "3.8"
 
 [tool.pylint.basic]

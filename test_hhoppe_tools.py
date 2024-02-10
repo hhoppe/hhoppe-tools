@@ -138,3 +138,22 @@ def test_vector_slerp() -> None:
 #   hh.show_notebook_cell_top_times()
 #   captured = capfd.readouterr()
 #   assert captured.out == ''
+
+
+def test_function_in_temporary_module() -> None:
+  def function1(a: int, b: int) -> int:
+    return a * 10 + b
+
+  with hh.function_in_temporary_module(function1) as function:
+    assert function.__name__ == 'function1'
+    assert function.__module__.startswith('temp_module_')
+    assert function(5, 4) == 54
+
+  def function2(a: int, b: int) -> int:
+    return math.prod([2, function1(a, b)])
+
+  header = 'import math'
+  with hh.function_in_temporary_module(function2, header=header, funcs=[function1]) as function:
+    assert function.__name__ == 'function2'
+    assert function.__module__.startswith('temp_module_')
+    assert function(5, 4) == 108

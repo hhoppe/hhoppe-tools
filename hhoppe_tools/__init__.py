@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.2'
+__version__ = '1.4.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -26,6 +26,7 @@ import doctest
 import enum
 import functools
 import gc
+import importlib
 import inspect
 import io
 import itertools
@@ -38,12 +39,14 @@ import stat
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import traceback
 import types
 import typing
 from typing import Any, Generic, Literal, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
+import uuid
 import warnings
 
 import numpy as np
@@ -1025,6 +1028,43 @@ def create_module(module_name: str, elements: Iterable[Any] = (), /) -> Any:
     element.__module__ = module_name
 
   return module
+
+
+@contextlib.contextmanager
+def function_in_temporary_module(
+    function: _F,
+    *,
+    header: str = '',
+    funcs: Sequence[Any] = (),
+) -> Iterator[_F]:
+  """Copies function into a new module backed by a Python file, for multiprocessing.
+
+  Args:
+    function: An original function (Callable).
+    header: Text to be inserted at the top of the temporary module.  It typically contains imports
+      necessary for the defintions of `function` or `funcs`.
+    funcs: List of additional functions to include in the temporary module.
+
+  Yields:
+    function: The new callable in the temporary module.
+  """
+  sources = [header] + [inspect.getsource(func) for func in [function] + list(funcs)]
+  source = '\n\n\n'.join(textwrap.dedent(text) for text in sources)
+
+  old_sys_path = sys.path
+  try:
+    salt = uuid.uuid4().hex[-8:]
+    module_name = f'temp_module_{salt}'
+    with tempfile.TemporaryDirectory() as temp_dir:
+      temp_path = pathlib.Path(temp_dir)
+      temp_file = temp_path / f'{module_name}.py'
+      temp_file.write_text(source, encoding='utf-8')
+      sys.path.append(str(temp_path))
+      temp_module = importlib.import_module(module_name)
+      yield getattr(temp_module, function.__name__)
+
+  finally:
+    sys.path = old_sys_path
 
 
 # ** System functions
@@ -2220,7 +2260,7 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
   return new_array
 
 
-@numba.njit  # type: ignore[misc]
+@numba.njit(cache=True)  # type: ignore[misc]
 def array_index(array: _NDArray, item: Any) -> int:
   """Return the index in `array` of the first element equal to `item`, or -1 if absent.
 
@@ -2490,6 +2530,10 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
   import networkx
 
   try:
+    if sys.platform == 'win32':
+      path = pathlib.Path(r'C:\Program Files\Graphviz\bin')
+      if path.is_dir() and str(path) not in os.environ['PATH']:
+        os.environ['PATH'] += f';{path}'
     args = '-Gstart=1'  # Deterministically seed the graphviz random number generator.
     return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
   except ImportError:
