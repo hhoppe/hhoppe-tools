@@ -1042,7 +1042,7 @@ def function_in_temporary_module(
   Args:
     function: An original function (Callable).
     header: Text to be inserted at the top of the temporary module.  It typically contains imports
-      necessary for the defintions of `function` or `funcs`.
+      necessary for the definitions of `function` or `funcs`.
     funcs: List of additional functions to include in the temporary module.
 
   Yields:
