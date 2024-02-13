@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.3'
+__version__ = '1.4.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2914,9 +2914,9 @@ def is_executable(path: _Path, /) -> bool:
 def get_env_bool(name: str, /, default: bool = False) -> bool:
   """Return boolean defined from environment variable `name` or else `default`.
 
-  >>> get_env_bool('NON_EXISTENT_VAR')
+  >>> get_env_bool('ABSENT_VAR')
   False
-  >>> get_env_bool('NON_EXISTENT_VAR', True)
+  >>> get_env_bool('ABSENT_VAR', True)
   True
 
   >>> os.environ['EXISTENT_VAR'] = '1'
@@ -2933,6 +2933,34 @@ def get_env_bool(name: str, /, default: bool = False) -> bool:
   if value not in true_ + false_:
     raise ValueError(f'Invalid {value=} for environment variable {name=}.')
   return value in true_
+
+
+def get_env_int(name: str, /, default: int = 0) -> int:
+  """Return integer defined from environment variable `name` or else `default`.
+
+  >>> get_env_int('ABSENT_VAR')
+  0
+  >>> get_env_int('ABSENT_VAR', 2)
+  2
+
+  >>> os.environ['EMPTY_VAR'] = ''
+  >>> get_env_int('EMPTY_VAR', 2)
+  1
+
+  >>> os.environ['DEFINED_VAR'] = '3'
+  >>> get_env_int('DEFINED_VAR', 2)
+  3
+  >>> os.environ.pop('DEFINED_VAR')
+  '3'
+  >>> get_env_int('DEFINED_VAR')
+  0
+  """
+  x = os.environ.get(name)
+  if x is None:
+    return default
+  if x == '':
+    return 1
+  return int(x)
 
 
 def run(args: str | Sequence[str], /) -> None:
