@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.4'
+__version__ = '1.4.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1375,6 +1375,17 @@ def diagnostic(a: _ArrayLike, /) -> str:
 # Instead, I use an ordinary class with protected class fields.
 
 
+def _determine_precision(dtype: _DTypeLike) -> np.dtype[Any]:
+  """Return a dtype for accurate statistics computations."""
+  if np.issubdtype(dtype, np.signedinteger):
+    return np.dtype(np.int64)
+  if np.issubdtype(dtype, np.unsignedinteger):
+    return np.dtype(np.uint64)
+  if np.issubdtype(dtype, np.floating):
+    return np.dtype(np.float64)
+  raise ValueError(f'Array dtype {dtype} is not supported.')
+
+
 class Stats:
   r"""Statistics computed from numbers in an iterable.
 
@@ -1447,6 +1458,8 @@ class Stats:
       self._max = -math.inf
     elif len(args) == 1:
       a = array_always(args[0])
+      precision = _determine_precision(a.dtype)
+      a = a.astype(precision)
       self._size = a.size
       self._sum = a.sum()
       self._sum2 = np.square(a).sum()
@@ -2576,8 +2589,24 @@ def rotate_layout_so_principal_component_is_on_x_axis(
   return {node: tuple(rotated_point) for node, rotated_point in zip(pos, rotated_points)}
 
 
+def _composite_over_background(image: _NDArray, background: _ArrayLike) -> _NDArray:
+  """Return an RGB image by compositing the RGBA `image` over the RGB `background`."""
+  assert image.ndim == 3 and image.shape[2] == 4, image.shape
+  assert image.dtype == np.uint8, image.dtype
+  background_image = np.broadcast_to(np.asarray(background), (*image.shape[:2], 3))
+  if np.all(image[..., 3] == 255):
+    return image[..., :3]
+  alpha = image[..., 3:4] / 255
+  premultiplied_alpha = False  # As observed.
+  if premultiplied_alpha:
+    image = (image[..., :3] + background_image * (1.0 - alpha) + 0.5).astype(np.uint8)
+  else:
+    image = (image[..., :3] * alpha + background_image * (1.0 - alpha) + 0.5).astype(np.uint8)
+  return image
+
+
 def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
-  """Return an RGB image by rasterizing a matplotlib figure `fig` over a `background` color."""
+  """Return an RGB image by rasterizing a matplotlib figure `fig` over an RGB `background`."""
   # assert isinstance(fig, matplotlib.figure.Figure)
   # One challenge is that matplotlib.get_backend() == module://matplotlib_inline.backend_inline
   # when it runs in a notebook, but matplotlib.get_backend() == 'agg' when it runs in bash,
@@ -2588,22 +2617,12 @@ def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
     fig.savefig(io_buf, format='raw', dpi=fig.dpi)
     shape = int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), 4  # RGBA.
     image = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
-    if np.all(image[..., 3] == 255):
-      image = image[..., :3]
-    else:
-      # Composite the image  over the background color.
-      background2 = np.broadcast_to(np.asarray(background), 3)
-      alpha = image[..., 3:4] / 255
-      premultiplied_alpha = False  # As observed.
-      if premultiplied_alpha:
-        image = (image[..., :3] + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
-      else:
-        image = (image[..., :3] * alpha + background2 * (1.0 - alpha) + 0.5).astype(np.uint8)
+    image = _composite_over_background(image, background)
     return image
 
 
-def images_from_animation(animation: Any) -> list[_NDArray]:
-  """Return a list of RGB images obtained by rendering the matplotlib `animation`."""
+def images_from_animation(animation: Any, background: _ArrayLike = 255) -> list[_NDArray]:
+  """Return a list of RGB images by rendering the matplotlib `animation` over an RGB background."""
   # assert isinstance(animation, matplotlib.animation.Animation)
   import matplotlib.animation
 
@@ -2624,15 +2643,14 @@ def images_from_animation(animation: Any) -> list[_NDArray]:
       if 0:  # Unnecessary.
         self.fig.canvas.draw()
 
-      if 1:
+      if in_notebook():  # Faster but works only if running within a notebook.
         image = np.array(self.fig.canvas.buffer_rgba())  # Not np.asarray() because we need a copy.
-        assert np.all(image[:, :, 3] == 255)
-        image = image[:, :, :3]
+        image = _composite_over_background(image, background)
 
       else:
         # Using fig.savefig() is ~1.7x slower; it is used in *Writer.grab_frame() in
         # https://github.com/matplotlib/matplotlib/blob/v3.8.2/lib/matplotlib/animation.py
-        image = image_from_plt(self.fig)
+        image = image_from_plt(self.fig, background)
 
       self.images.append(image)
 
