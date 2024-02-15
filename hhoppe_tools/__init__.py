@@ -437,9 +437,7 @@ def in_notebook() -> bool:
   >>> in_notebook()
   False
   """
-  import IPython
-
-  return IPython.get_ipython() is not None  # type: ignore
+  return _get_ipython() is not None
 
 
 def in_colab() -> bool:
