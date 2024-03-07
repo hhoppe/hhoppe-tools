@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.5'
+__version__ = '1.4.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1059,7 +1059,9 @@ def function_in_temporary_module(
       temp_file.write_text(source, encoding='utf-8')
       sys.path.append(str(temp_path))
       temp_module = importlib.import_module(module_name)
-      yield getattr(temp_module, function.__name__)
+      new_function = getattr(temp_module, function.__name__)
+      assert new_function is not None
+      yield new_function
 
   finally:
     sys.path = old_sys_path
