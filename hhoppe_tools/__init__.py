@@ -80,7 +80,7 @@ def noop_decorator(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
 
 
 def noop_decorator(*args: Any, **kwargs: Any) -> Any:
-  """Return function decorated with no-operation; invokable with or without args.
+  """Return function decorated with no-operation; invocable with or without args.
 
   >>> @noop_decorator
   ... def func1(x): return x * 10
