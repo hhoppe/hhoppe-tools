@@ -2003,6 +2003,7 @@ def grid_from_indices(
   a_pad = np.asarray(pad)
   shape = i_max - i_min + 2 * a_pad + 1
   offset = -i_min + a_pad
+  # pylint: disable-next=possibly-used-before-assignment
   elems = [next(iter(mapping.values()))] if is_map and mapping else []
   elems += [background, foreground]
   shape2 = (*shape, *np.broadcast(*elems).shape)
