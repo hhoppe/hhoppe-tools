@@ -1292,16 +1292,15 @@ def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
 def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   """Return the root mean square of the array values.
 
-  >>> rms([3.0])
-  3.0
+  >>> assert rms([3.0]) == 3.0
 
-  >>> rms([-3.0, 4.0])
+  >>> rms([-3.0, 4.0]).item()
   3.5355339059327378
 
-  >>> rms([10, 11, 12])
+  >>> rms([10, 11, 12]).item()
   11.030261405182864
 
-  >>> rms([[-1.0, 1.0], [0.0, -2.0]])
+  >>> rms([[-1.0, 1.0], [0.0, -2.0]]).item()
   1.224744871391589
 
   >>> rms([[-1.0, 1.0], [0.0, -2.0]], axis=-1)
@@ -1421,12 +1420,11 @@ class Stats:
 
   >>> len(Stats([1, 2]))
   2
-  >>> Stats([-2, 2]).rms()
+  >>> Stats([-2, 2]).rms().item()
   2.0
 
   >>> a = Stats([1, 2])
-  >>> a.min(), a.max(), a.avg()
-  (1, 2, 1.5)
+  >>> assert a.min() == 1 and a.max() == 2 and a.avg() == 1.5
 
   >>> stats1 = Stats([-3, 7])
   >>> stats2 = Stats([1.25e11 / 3, -1_234_567_890])
@@ -1479,40 +1477,35 @@ class Stats:
   def min(self) -> float:
     """Return the minimum value.
 
-    >>> Stats([3.5, 2.2, 4.4]).min()
-    2.2
+    >>> assert Stats([3.5, 2.2, 4.4]).min() == 2.2
     """
     return self._min
 
   def max(self) -> float:
     """Return the maximum value.
 
-    >>> Stats([3.5, 2.2, 4.4]).max()
-    4.4
+    >>> assert Stats([3.5, 2.2, 4.4]).max() == 4.4
     """
     return self._max
 
   def avg(self) -> float:
     """Return the average.
 
-    >>> Stats([1, 1, 4]).avg()
-    2.0
+    >>> assert Stats([1, 1, 4]).avg() == 2.0
     """
     return math.nan if self._size == 0 else self._sum / self._size
 
   def ssd(self) -> float:
     """Return the sum of squared deviations.
 
-    >>> Stats([1, 1, 4]).ssd()
-    6.0
+    >>> assert Stats([1, 1, 4]).ssd() == 6.0
     """
     return math.nan if self._size == 0 else max(self._sum2 - self._sum**2 / self._size, 0)
 
   def var(self) -> float:
     """Return the unbiased estimate of variance, as in `np.var(a, ddof=1)`.
 
-    >>> Stats([1, 1, 4]).var()
-    3.0
+    >>> assert Stats([1, 1, 4]).var() == 3.0
     """
     return (
         math.nan if self._size == 0 else 0.0 if self._size == 1 else self.ssd() / (self._size - 1)
@@ -1521,7 +1514,7 @@ class Stats:
   def sdv(self) -> float:
     """Return the unbiased standard deviation as in `np.std(a, ddof=1)`.
 
-    >>> Stats([1, 1, 4]).sdv()
+    >>> Stats([1, 1, 4]).sdv().item()
     1.7320508075688772
     """
     return self.var() ** 0.5
@@ -1529,11 +1522,10 @@ class Stats:
   def rms(self) -> float:
     """Return the root-mean-square.
 
-    >>> Stats([1, 1, 4]).rms()
+    >>> Stats([1, 1, 4]).rms().item()
     2.449489742783178
 
-    >>> Stats([-1, 1]).rms()
-    1.0
+    >>> assert Stats([-1, 1]).rms() == 1.0
     """
     if self._size == 0:
       return 0.0
@@ -1586,8 +1578,7 @@ class Stats:
   def __add__(self, other: Stats) -> Stats:
     """Return combined statistics.
 
-    >>> Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
-    True
+    >>> assert Stats([2, -1]) + Stats([7, 5]) == Stats([-1, 2, 5, 7])
     """
     return Stats(
         self._size + other._size,
@@ -1600,8 +1591,7 @@ class Stats:
   def __mul__(self, n: int) -> Stats:
     """Return statistics whereby each element appears `n` times.
 
-    >>> Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
-    True
+    >>> assert Stats([4, -2]) * 3 == Stats([-2, -2, -2, 4, 4, 4])
     """
     return Stats(self._size * n, self._sum * n, self._sum2 * n, self._min, self._max)
 
@@ -1737,11 +1727,9 @@ def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   >>> bounding_slices(np.ones((0, 10)))
   (slice(0, 0, None), slice(0, 0, None))
 
-  >>> bounding_slices(32.0)
-  (slice(0, 1, None),)
+  >>> assert bounding_slices(32.0) == (slice(0, 1, None),)
 
-  >>> bounding_slices([0.0, 0.0, 0.0, 0.5, 1.5, 0.0, 2.5, 0.0, 0.0])
-  (slice(3, 7, None),)
+  >>> assert bounding_slices([0.0, 0.0, 0.0, 0.5, 1.5, 0.0, 2.5, 0.0, 0.0]) == (slice(3, 7, None),)
 
   >>> a = np.array([0, 0, 6, 7, 0, 0])
   >>> a[bounding_slices(a)]
@@ -1751,8 +1739,8 @@ def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   >>> a[bounding_slices(a)]
   array([[1, 1]])
 
-  >>> bounding_slices([[[0, 0], [0, 1]], [[0, 0], [0, 0]]])
-  (slice(0, 1, None), slice(1, 2, None), slice(1, 2, None))
+  >>> assert (bounding_slices([[[0, 0], [0, 1]], [[0, 0], [0, 0]]]) ==
+  ...         (slice(0, 1, None), slice(1, 2, None), slice(1, 2, None)))
   """
   a = np.atleast_1d(a)
   slices = []
