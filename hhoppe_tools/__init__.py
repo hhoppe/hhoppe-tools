@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.6'
+__version__ = '1.4.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2268,29 +2268,14 @@ def array_index(array: _NDArray, item: Any) -> int:
 
   See https://stackoverflow.com/a/41578614/1190077
 
-  >>> array_index(np.array([], int), 3)
-  -1
-
-  >>> array_index(np.array([1, 2]), 3)
-  -1
-
-  >>> array_index(np.array([1, 2, 1]), 1)
-  0
-
-  >>> array_index(np.array([1, 2, 1]), 2)
-  1
-
-  >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 4]))
-  -1
-
-  >>> array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 1]))
-  1
-
-  >>> array_index(np.array(list('abcdef')), 'g')
-  -1
-
-  >>> array_index(np.array(list('abcdef')), 'd')
-  3
+  >>> assert array_index(np.array([], int), 3) == -1
+  >>> assert array_index(np.array([1, 2]), 3) == -1
+  >>> assert array_index(np.array([1, 2, 1]), 1) == 0
+  >>> assert array_index(np.array([1, 2, 1]), 2) == 1
+  >>> assert array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 4])) == -1
+  >>> assert array_index(np.array([[1, 2], [1, 1], [1, 3]]), np.array([1, 1])) == 1
+  >>> assert array_index(np.array(list('abcdef')), 'g') == -1
+  >>> assert array_index(np.array(list('abcdef')), 'd') == 3
   """
   if array.ndim == 1:
     for i, value in enumerate(array):
@@ -2857,23 +2842,12 @@ def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
     seq: Sequence to search; it must be an array of non-negative integers.
     subseq: Pattern to locate in the sequence; it must be an array of non-negative integers.
 
-  >>> boyer_subsequence_find(np.array([], int), np.array([1]))
-  -1
-
-  >>> boyer_subsequence_find(np.array([2]), np.array([1]))
-  -1
-
-  >>> boyer_subsequence_find(np.array([1, 2]), np.array([1]))
-  0
-
-  >>> boyer_subsequence_find(np.array([2, 1]), np.array([1]))
-  1
-
-  >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([1, 2]))
-  1
-
-  >>> boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([2, 2]))
-  -1
+  >>> assert boyer_subsequence_find(np.array([], int), np.array([1])) == -1
+  >>> assert boyer_subsequence_find(np.array([2]), np.array([1])) == -1
+  >>> assert boyer_subsequence_find(np.array([1, 2]), np.array([1])) == 0
+  >>> assert boyer_subsequence_find(np.array([2, 1]), np.array([1])) == 1
+  >>> assert boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([1, 2])) == 1
+  >>> assert boyer_subsequence_find(np.array([1, 1, 2, 1]), np.array([2, 2])) == -1
   """
   m, n = len(subseq), len(seq)
   skip_table = np.full(subseq.max() + 1, m)
