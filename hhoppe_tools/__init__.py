@@ -63,7 +63,7 @@ _UNDEFINED = object()
 _NDArray = numpy.typing.NDArray[Any]
 _DTypeLike = numpy.typing.DTypeLike
 _ArrayLike = numpy.typing.ArrayLike
-_Path = Union[str, os.PathLike[str]]
+_Path = Union[str, bytes, os.PathLike[str], os.PathLike[bytes]]
 
 
 # ** numba
