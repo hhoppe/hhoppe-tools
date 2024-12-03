@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.7'
+__version__ = '1.4.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -63,7 +63,7 @@ _UNDEFINED = object()
 _NDArray = numpy.typing.NDArray[Any]
 _DTypeLike = numpy.typing.DTypeLike
 _ArrayLike = numpy.typing.ArrayLike
-_Path = Union[str, bytes, os.PathLike[str], os.PathLike[bytes]]
+_Path = Union[str, os.PathLike[str]]
 
 
 # ** numba
