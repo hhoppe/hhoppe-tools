@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.4.8'
+__version__ = '1.5.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1211,7 +1211,56 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
   return match.groups()
 
 
-# ** Mathematics
+# ** Discrete mathematics.
+
+
+def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
+  """Find the greatest common divisor using the extended Euclidean algorithm.
+
+  Returns: (gcd(a, b), x, y) with the property that a * x + b * y = gcd(a, b).
+
+  >>> extended_gcd(29, 71)  # (-22) * 29 + (9) * 71 = gcd(29, 71) = 1  and  (29 * -22) % 71 == 1.
+  (1, -22, 9)
+
+  >>> extended_gcd(6, 8)  # (-1) * 6 + (1) * 8 = gcd(6, 8) = 2.
+  (2, -1, 1)
+  """
+  prev_x, x = 1, 0
+  prev_y, y = 0, 1
+  while b:
+    q = a // b
+    x, prev_x = prev_x - q * x, x
+    y, prev_y = prev_y - q * y, y
+    a, b = b, a % b
+  return a, prev_x, prev_y
+
+
+def solve_modulo_congruences(remainders: Iterable[int], moduli: Iterable[int]) -> int:
+  """Return `x` satisfying `x % moduli[i] == remainders[i]`; handles non-coprime moduli.
+
+  >>> solve_modulo_congruences([3, 6, 6], [5, 7, 11])  # Coprime moduli.
+  83
+
+  >>> solve_modulo_congruences([1, 1, 1, 1, 1], [2, 3, 4, 5, 6])  # Non-coprime moduli.
+  1
+  """
+
+  def merge(rm1: tuple[int, int], rm2: tuple[int, int]) -> tuple[int, int]:
+    (a, m), (b, n) = rm1, rm2
+    gcd, u, v = extended_gcd(m, n)
+    if 0:  # Simpler algorithm that assumes the moduli are coprime.
+      return m * n, (a * v * n + b * u * m) % (m * n)
+    # General algorithm; see https://math.stackexchange.com/a/1644698.
+    lamb = (a - b) // gcd
+    sigma = a - m * u * lamb
+    assert sigma == b + n * v * lamb
+    lcm = math.lcm(m, n)
+    return sigma % lcm, lcm
+
+  return functools.reduce(merge, zip(remainders, moduli))[0]  # Python 3.10: use strict=True.
+
+
+# ** Continuous mathematics.
 
 
 def as_float(a: _ArrayLike, /) -> _NDArray:
