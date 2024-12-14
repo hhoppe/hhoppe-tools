@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.0'
+__version__ = '1.5.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1219,11 +1219,15 @@ def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
 
   Returns: (gcd(a, b), x, y) with the property that a * x + b * y = gcd(a, b).
 
-  >>> extended_gcd(29, 71)  # (-22) * 29 + (9) * 71 = gcd(29, 71) = 1  and  (29 * -22) % 71 == 1.
+  >>> extended_gcd(29, 71)
   (1, -22, 9)
+  >>> -22 * 29 + 9 * 71, math.gcd(29, 71)
+  (1, 1)
 
-  >>> extended_gcd(6, 8)  # (-1) * 6 + (1) * 8 = gcd(6, 8) = 2.
+  >>> extended_gcd(6, 8)
   (2, -1, 1)
+  >>> -1 * 6 + 1 * 8, math.gcd(6, 8)
+  (2, 2)
   """
   prev_x, x = 1, 0
   prev_y, y = 0, 1
@@ -1248,13 +1252,13 @@ def solve_modulo_congruences(remainders: Iterable[int], moduli: Iterable[int]) -
   def merge(rm1: tuple[int, int], rm2: tuple[int, int]) -> tuple[int, int]:
     (a, m), (b, n) = rm1, rm2
     gcd, u, v = extended_gcd(m, n)
-    if 0:  # Simpler algorithm that assumes the moduli are coprime.
-      return m * n, (a * v * n + b * u * m) % (m * n)
+    if gcd == 1:  # Simpler algorithm for coprime moduli.
+      return (a * v * n + b * u * m) % (m * n), m * n
     # General algorithm; see https://math.stackexchange.com/a/1644698.
     lamb = (a - b) // gcd
     sigma = a - m * u * lamb
     assert sigma == b + n * v * lamb
-    lcm = math.lcm(m, n)
+    lcm = m * n // gcd
     return sigma % lcm, lcm
 
   return functools.reduce(merge, zip(remainders, moduli))[0]  # Python 3.10: use strict=True.
