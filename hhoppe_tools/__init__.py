@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.1'
+__version__ = '1.5.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -257,7 +257,7 @@ def _dump_vars(*args: Any) -> str:
 
         expressions = [get_text(element) for element in elements]
       l = []
-      for expr, value in zip(expressions, args):
+      for expr, value in zip(expressions, args):  # Python 3.10: strict=True.
         l.append(f'{expr} = {value}' if expr[0] not in '"\'' else str(value))
       return ', '.join(l)
 
@@ -856,35 +856,35 @@ class OrderedEnum(enum.Enum):
 
 
 @contextlib.contextmanager
-def temporary_assignment(variables: dict[str, Any], name: str, value: Any, /) -> Iterator[None]:
-  """Temporarily assign `value` to the variable named `name` in `variables`.
+def temporary_assignment(variables: dict[str, Any], /, **kwargs: Any) -> Iterator[None]:
+  """Temporarily assign `**kwargs` to `variables`.
 
   Args:
     variables: Usually the `globals()` of the caller module.  Note that a function-scope
       `locals()` does not work as it should not be modified.
-    name: Name of the variable in `variables` to temporarily assign.
-    value: Value assigned to `name` in the lifetime of the context.
+    **kwargs: Assignments of values to variable names.
 
   >>> var = 1
-  >>> with temporary_assignment(globals(), 'var', 2):
+  >>> with temporary_assignment(globals(), var=2):
   ...   check_eq(var, 2)
   >>> check_eq(var, 1)
 
   >>> assert 'var2' not in globals()
-  >>> with temporary_assignment(globals(), 'var2', '1'):
+  >>> with temporary_assignment(globals(), var2='1'):
   ...   check_eq(var2, '1')  # noqa
   >>> assert 'var2' not in globals()
   """
   # https://stackoverflow.com/a/57226721.
-  old_value = variables.get(name, _UNDEFINED)
+  old_values = {key: variables.get(key, _UNDEFINED) for key in kwargs}
   try:
-    variables[name] = value
+    variables.update(kwargs)
     yield
   finally:
-    if old_value is _UNDEFINED:
-      del variables[name]
-    else:
-      variables[name] = old_value
+    for key, old_value in old_values.items():
+      if old_value is _UNDEFINED:
+        variables.pop(key)
+      else:
+        variables[key] = old_value
 
 
 # ** Meta programming
@@ -1232,14 +1232,14 @@ def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
   prev_x, x = 1, 0
   prev_y, y = 0, 1
   while b:
-    q = a // b
+    q, r = divmod(a, b)
     x, prev_x = prev_x - q * x, x
     y, prev_y = prev_y - q * y, y
-    a, b = b, a % b
+    a, b = b, r
   return a, prev_x, prev_y
 
 
-def solve_modulo_congruences(remainders: Iterable[int], moduli: Iterable[int]) -> int:
+def solve_modulo_congruences(remainders: Sequence[int], moduli: Sequence[int]) -> int:
   """Return `x` satisfying `x % moduli[i] == remainders[i]`; handles non-coprime moduli.
 
   >>> solve_modulo_congruences([3, 6, 6], [5, 7, 11])  # Coprime moduli.
@@ -1248,20 +1248,25 @@ def solve_modulo_congruences(remainders: Iterable[int], moduli: Iterable[int]) -
   >>> solve_modulo_congruences([1, 1, 1, 1, 1], [2, 3, 4, 5, 6])  # Non-coprime moduli.
   1
   """
+  if len(remainders) != len(moduli):
+    raise ValueError('Number of remainders must match number of moduli.')
 
-  def merge(rm1: tuple[int, int], rm2: tuple[int, int]) -> tuple[int, int]:
-    (a, m), (b, n) = rm1, rm2
-    gcd, u, v = extended_gcd(m, n)
-    if gcd == 1:  # Simpler algorithm for coprime moduli.
-      return (a * v * n + b * u * m) % (m * n), m * n
-    # General algorithm; see https://math.stackexchange.com/a/1644698.
-    lamb = (a - b) // gcd
-    sigma = a - m * u * lamb
-    assert sigma == b + n * v * lamb
-    lcm = m * n // gcd
-    return sigma % lcm, lcm
+  r, m = remainders[0], moduli[0]
 
-  return functools.reduce(merge, zip(remainders, moduli))[0]  # Python 3.10: use strict=True.
+  for r2, m2 in zip(remainders[1:], moduli[1:]):  # Python 3.10: strict=True
+    g, x, _ = extended_gcd(m, m2)
+    assert r % g == r2 % g
+    if (r2 - r) % g != 0:
+      raise ValueError('No solution exists.')
+
+    # Find a particular solution.
+    x0 = (x * ((r2 - r) // g)) % (m2 // g)
+
+    # Update the current solution.
+    r = r + m * x0
+    m = m * m2 // g
+
+  return r % m
 
 
 # ** Continuous mathematics.
