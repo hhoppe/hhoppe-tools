@@ -2210,7 +2210,7 @@ def hsv_from_rgb(rgb: _ArrayLike) -> _NDArray:
 
 
 def generate_random_colors(
-    n_colors: int = 200, min_intensity: int = 80, max_intensity: int = 160
+    n_colors: int, min_intensity: int = 80, max_intensity: int = 160
 ) -> _NDArray:
   """Generate a deterministic array of distinct RGB np.uint8 colors with controlled gray intensity.
 
