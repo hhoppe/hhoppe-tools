@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.2'
+__version__ = '1.5.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -299,9 +299,8 @@ def analyze_functools_caches(variables: Mapping[str, Any], /) -> None:
 
   >>> [func(i) for i in [1, 2, 1, 3, 1]]
   [1, 4, 1, 9, 1]
-  >>> analyze_functools_caches(globals())
-  ...  # doctest:+ELLIPSIS
-  # func ...  3/inf        0.400 hit=            2 miss=            3
+  >>> analyze_functools_caches(globals())  # doctest:+ELLIPSIS
+  #... func ...  3/inf        0.400 hit=            2 miss=            3...
   """
   for name, value in variables.items():
     try:
@@ -1394,6 +1393,54 @@ def prime_factors(n: int, /) -> list[int]:
   return factors
 
 
+def van_der_corput(n: int, base: int = 2) -> float:
+  """Return the nth element of the quasi-random low-discrepancy Van der Corput sequence.
+
+  Args:
+    n: Index in the sequence.  Zero is at n=0, and 0.5 is at n=1, so starting at n=1 is useful.
+    base: Base for the sequence (typically 2 for binary).
+
+  Return:
+    A value in the range [0, 1) with low-discrepancy properties.
+
+  >>> [van_der_corput(i) for i in range(1, 6)]
+  [0.5, 0.25, 0.75, 0.125, 0.625]
+  """
+  vdc = 0.0
+  denom = 1
+  while n:
+    denom *= base
+    n, remainder = divmod(n, base)
+    vdc += remainder / denom
+  return vdc
+
+
+def van_der_corput_sequence(n: int, base: int = 2) -> _NDArray:
+  """Generate a vectorized Van der Corput sequence using efficient bitwise operations.
+
+  Args:
+    n: Number of elements to generate in the sequence.
+    base: Base for the sequence (typically 2 for binary).
+
+  Returns:
+    NumPy array of low-discrepancy sequence elements in the range [0, 1).
+
+  >>> van_der_corput_sequence(5)
+  array([0.5  , 0.25 , 0.75 , 0.125, 0.625])
+  >>> assert np.all(van_der_corput_sequence(1000) == [van_der_corput(i + 1) for i in range(1000)])
+  """
+  indices = np.arange(1, n + 1)
+  vdc = np.zeros(n, dtype=np.float64)
+  current_denom = base
+  # Process each bit position
+  while np.any(indices):
+    remainder = indices % base
+    vdc += remainder / current_denom
+    indices //= base
+    current_denom *= base
+  return vdc
+
+
 def diagnostic(a: _ArrayLike, /) -> str:
   """Return a diagnostic string summarizing the values in `a` for debugging.
 
@@ -2059,6 +2106,128 @@ def grid_from_indices(
   indices += offset
   grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
   return grid
+
+
+def rgb_from_hsx(hsx: _ArrayLike, *, is_hsl: bool) -> _NDArray:
+  """Convert from HSV/HSL ([0, 360], [0, 1], [0, 1]) to RGB ([0, 1], [0, 1], [0, 1])."""
+  hsx = np.asarray(hsx)
+  if hsx.shape[-1] != 3:
+    raise ValueError(f'The last dimension in {hsx.shape} is not 3.')
+  h, s, v_or_l = hsx[..., 0], hsx[..., 1], hsx[..., 2]
+  h = np.mod(h, 360)  # Wrap hue to [0, 360).
+  if is_hsl:
+    c = (1 - np.abs(2 * v_or_l - 1)) * s  # HSL chroma formula.
+    m = v_or_l - 0.5 * c  # HSL match formula.
+  else:
+    c = v_or_l * s  # HSV chroma formula.
+    m = v_or_l - c  # HSV match formula.
+  x = c * (1 - np.abs((h / 60) % 2 - 1))  # Secondary component.
+  rgb = np.empty_like(hsx)
+
+  mask1 = h < 60  # Six hue sectors.
+  mask2 = (60 <= h) & (h < 120)
+  mask3 = (120 <= h) & (h < 180)
+  mask4 = (180 <= h) & (h < 240)
+  mask5 = (240 <= h) & (h < 300)
+  mask6 = 300 <= h
+
+  rgb[mask1, 0], rgb[mask1, 1], rgb[mask1, 2] = c[mask1], x[mask1], 0
+  rgb[mask2, 0], rgb[mask2, 1], rgb[mask2, 2] = x[mask2], c[mask2], 0
+  rgb[mask3, 0], rgb[mask3, 1], rgb[mask3, 2] = 0, c[mask3], x[mask3]
+  rgb[mask4, 0], rgb[mask4, 1], rgb[mask4, 2] = 0, x[mask4], c[mask4]
+  rgb[mask5, 0], rgb[mask5, 1], rgb[mask5, 2] = x[mask5], 0, c[mask5]
+  rgb[mask6, 0], rgb[mask6, 1], rgb[mask6, 2] = c[mask6], 0, x[mask6]
+
+  rgb += m[..., None]  # Add the match value to shift all components to the [0, 1] range.
+  return rgb
+
+
+def rgb_from_hsl(hsl: _ArrayLike) -> _NDArray:
+  """Convert from HSL ([0, 360], [0, 1], [0, 1]) to RGB ([0, 1], [0, 1], [0, 1]).
+
+  >>> hsl = (np.indices((10, 10, 10)).T.reshape(10, 100, 3) + 0.5) / 10 * [360, 1, 1]
+  >>> assert ((hsl_from_rgb(rgb_from_hsl(hsl)) - hsl) ** 2).sum() < 1e-20
+  """
+  return rgb_from_hsx(hsl, is_hsl=True)
+
+
+def rgb_from_hsv(hsv: _ArrayLike) -> _NDArray:
+  """Convert from HSV ([0, 360], [0, 1], [0, 1]) to RGB ([0, 1], [0, 1], [0, 1]).
+
+  >>> hsv = (np.indices((10, 10, 10)).T.reshape(10, 100, 3) + 0.5) / 10 * [360, 1, 1]
+  >>> assert ((hsv_from_rgb(rgb_from_hsv(hsv)) - hsv) ** 2).sum() < 1e-20
+  """
+  return rgb_from_hsx(hsv, is_hsl=False)
+
+
+def hsx_from_rgb(rgb: _ArrayLike, *, use_hsl: bool) -> _NDArray:
+  """Convert from RGB ([0, 1], [0, 1], [0, 1]) to HSV/HSL ([0, 360], [0, 1], [0, 1])."""
+  rgb = np.asarray(rgb)
+  if rgb.shape[-1] != 3:
+    raise ValueError(f'The last dimension in {rgb.shape} is not 3.')
+  r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+  hsx = np.zeros_like(rgb)
+  h, s, v_or_l = hsx[..., 0], hsx[..., 1], hsx[..., 2]
+  max_val = np.max(rgb, axis=-1)
+  min_val = np.min(rgb, axis=-1)
+  c = max_val - min_val  # Chroma.
+  mask_r = (max_val == r) & (c > 0)  # Compute hue.
+  mask_g = (max_val == g) & (c > 0)
+  mask_b = (max_val == b) & (c > 0)
+  h[mask_r] = (g[mask_r] - b[mask_r]) / c[mask_r] % 6
+  h[mask_g] = (b[mask_g] - r[mask_g]) / c[mask_g] + 2
+  h[mask_b] = (r[mask_b] - g[mask_b]) / c[mask_b] + 4
+  h[:] = np.mod(h * 60, 360)
+
+  if use_hsl:
+    l = v_or_l
+    l[:] = (max_val + min_val) / 2
+    s[:] = np.where(c == 0, 0, c / (1 - np.abs(2 * l - 1)))
+  else:
+    v = v_or_l
+    v[:] = max_val
+    s[:] = np.where(c == 0, 0, c / v)
+
+  return hsx
+
+
+def hsl_from_rgb(rgb: _ArrayLike) -> _NDArray:
+  """Convert from RGB ([0, 1], [0, 1], [0, 1]) to HSL ([0, 360], [0, 1], [0, 1]).
+
+  >>> rgb = (np.indices((10, 10, 10)).T.reshape(10, 100, 3) + 0.5) / 10
+  >>> assert ((rgb_from_hsl(hsl_from_rgb(rgb)) - rgb) ** 2).sum() < 1e-20
+  """
+  return hsx_from_rgb(rgb, use_hsl=True)
+
+
+def hsv_from_rgb(rgb: _ArrayLike) -> _NDArray:
+  """Convert from RGB ([0, 1], [0, 1], [0, 1]) to HSL ([0, 360], [0, 1], [0, 1]).
+
+  >>> rgb = (np.indices((10, 10, 10)).T.reshape(10, 100, 3) + 0.5) / 10
+  >>> assert ((rgb_from_hsv(hsv_from_rgb(rgb)) - rgb) ** 2).sum() < 1e-20
+  """
+  return hsx_from_rgb(rgb, use_hsl=False)
+
+
+def generate_random_colors(
+    n_colors: int = 200, min_intensity: int = 80, max_intensity: int = 160
+) -> _NDArray:
+  """Generate a deterministic array of distinct RGB np.uint8 colors with controlled gray intensity.
+
+  >>> colors = generate_random_colors(4)
+  >>> assert colors.shape == (4, 3) and colors.dtype == np.uint8
+  >>> colors2 = generate_random_colors(20)
+  >>> assert all(200 < ptp <= 255 for ptp in np.ptp(colors2, axis=0))
+  >>> assert np.all(generate_random_colors(20) == colors2)
+  """
+  hue = np.linspace(0, 1, n_colors, endpoint=False) * 360
+  saturation = np.full(n_colors, 1.0)
+  n_intensities = 4
+  intensity = (np.arange(n_colors) % n_intensities) / (n_intensities - 1)
+  intensity = (intensity * (max_intensity - min_intensity) + min_intensity) / 255
+  hsl = np.stack((hue, saturation, intensity), axis=-1)
+  np.random.default_rng(1).shuffle(hsl)
+  return (rgb_from_hsl(hsl) * 255).astype(np.uint8)
 
 
 def image_from_yx_map(
