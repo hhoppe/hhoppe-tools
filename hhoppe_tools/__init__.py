@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.3'
+__version__ = '1.5.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2257,41 +2257,42 @@ def image_from_yx_map(
 
 
 def _fit_shape(shape: Sequence[int], num: int, /) -> tuple[int, ...]:
-  """Given `shape` with one optional -1 dimension, make it fit `num` elements.
+  """Given `shape` (with optional -1 dimensions), make it fit `num` elements.
 
   Args:
-    shape: Input dimensions.  These must be positive, except that one dimension may be -1 to
-      indicate that it should be computed.  If all dimensions are positive, these must satisfy
-      `math.prod(shape) >= num`.
+    shape: Input dimensions.  Each dimension must either be positive or the special value -1 to
+      indicate that it should be computed for tightest fit.  If all dimensions are positive,
+      these must satisfy `math.prod(shape) >= num`.
     num: Number of elements to fit into the output shape.
 
   Returns:
     The original `shape` if all its dimensions are positive.  Otherwise, a new_shape where the
-    unique dimension with value -1 is replaced by the smallest number such that
+    dimensions with value -1 are replaced by the same smallest number such that
     `math.prod(new_shape) >= num`.
 
-  >>> _fit_shape((3, 4), 10)
-  (3, 4)
-
+  >>> assert _fit_shape((3,), 2) == (3,)
+  >>> assert _fit_shape((-1,), 2) == (2,)
+  >>> assert _fit_shape((3, 4), 10) == (3, 4)
+  >>> assert _fit_shape((3, -1), 10) == (3, 4)
+  >>> assert _fit_shape((-1, 4), 10) == (3, 4)
+  >>> assert _fit_shape((-1, 10), 51) == (6, 10)
+  >>> assert _fit_shape((-1, -1), 51) == (8, 8)
+  >>> assert _fit_shape((-1, -1), 25) == (5, 5)
+  >>> assert _fit_shape((-1, 3, -1), 51) == (5, 3, 5)
   >>> _fit_shape((5, 2), 11)
   Traceback (most recent call last):
   ...
   ValueError: (5, 2) is insufficiently large for 11 elements.
-
-  >>> _fit_shape((3, -1), 10)
-  (3, 4)
-
-  >>> _fit_shape((-1, 10), 51)
-  (6, 10)
   """
   shape = tuple(shape)
   if not all(dim > 0 for dim in shape if dim != -1):
     raise ValueError(f'Shape {shape} has non-positive dimensions.')
-  if sum(dim == -1 for dim in shape) > 1:
-    raise ValueError(f'More than one dimension in {shape} is -1.')
   if -1 in shape:
-    slice_size = math.prod(dim for dim in shape if dim != -1)
-    shape = tuple((num + slice_size - 1) // slice_size if dim == -1 else dim for dim in shape)
+    positive_dims = [dim for dim in shape if dim != -1]
+    slice_size = math.prod(positive_dims)  # Note that math.prod([]) == 1.
+    n_neg = len(shape) - len(positive_dims)
+    new_dim = math.ceil((num / slice_size) ** (1 / n_neg) * (1 - 1e-12))
+    shape = tuple(new_dim if dim == -1 else dim for dim in shape)
   elif math.prod(shape) < num:
     raise ValueError(f'{shape} is insufficiently large for {num} elements.')
   return shape
