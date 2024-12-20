@@ -2726,6 +2726,7 @@ class UnionFind(Generic[_T]):
     if a not in self._rep:
       return a
     parents = []
+    # while (parent := self._rep.setdefault(a, a)) != a:  # Python 3.10
     while True:
       parent = self._rep.setdefault(a, a)
       if parent == a:
