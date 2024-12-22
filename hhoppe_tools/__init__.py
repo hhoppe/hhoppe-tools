@@ -223,6 +223,8 @@ def _dump_vars(*args: Any) -> str:
 
   # Adapted from make_dict() in https://stackoverflow.com/a/2553524 .
   stack = traceback.extract_stack()
+  # for frame in stack:
+  #   print(f'{tuple(frame)=}', file=sys.stderr)
   this_function_name = stack[-1][2]  # i.e. initially '_dump_vars'.
   for stackframe in stack[-2::-1]:
     filename, unused_line_number, function_name, text = stackframe  # Caller.
@@ -272,6 +274,8 @@ def show(*args: Any) -> None:
 
   Raises:
     RuntimeError: If the invoking `show(...)` is not contained on a single source line.
+
+  Gets confused if there are multiple `show` calls on the same line of code.
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
   ...   show(4 * 3)
