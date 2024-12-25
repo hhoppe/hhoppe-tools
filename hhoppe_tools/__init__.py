@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.4'
+__version__ = '1.5.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -52,6 +52,9 @@ import warnings
 import numpy as np
 import numpy.typing
 
+if typing.TYPE_CHECKING:
+  import PIL.ImageDraw
+
 # For np.broadcast_to(), etc.
 # mypy: allow-untyped-calls
 
@@ -64,7 +67,6 @@ _NDArray = numpy.typing.NDArray[Any]
 _DTypeLike = numpy.typing.DTypeLike
 _ArrayLike = numpy.typing.ArrayLike
 _Path = Union[str, os.PathLike[str]]
-
 
 # ** numba
 
@@ -2520,6 +2522,27 @@ def array_index(array: _NDArray, item: Any) -> int:
   return -1
 
 
+@contextlib.contextmanager
+def pil_draw(image: _NDArray) -> Iterator[PIL.ImageDraw.ImageDraw]:
+  """Create a PIL.ImageDraw.Draw whose content is copied back to `image` upon exit.
+
+  >>> image = np.full((10, 10, 3), 255, np.uint8)
+  >>> (y1, x1), (y2, x2) = (2, 3), (4, 6)
+  >>> with pil_draw(image) as draw:
+  ...   draw.rectangle(((x1, y1), (x2, y2)), fill=(50, 100, 150), width=0)
+  >>> assert np.all(image[2:5, 3:7] == (50, 100, 150))
+  >>> image[2:5, 3:7] = 255
+  >>> assert np.all(image[2:5, 3:7] == 255)
+  """
+  import PIL.Image
+  import PIL.ImageDraw
+
+  pil_image = PIL.Image.fromarray(image)
+  draw = PIL.ImageDraw.Draw(pil_image)
+  yield draw
+  image[:] = np.asarray(pil_image)
+
+
 def _get_pil_font(font_size: int, font_name: str) -> Any:
   import matplotlib
   import PIL.ImageFont
@@ -2609,7 +2632,7 @@ def rasterized_text(
   draw = PIL.ImageDraw.Draw(pil_image)
   xy = margin[1, 0], margin[0, 0] + y
   draw.text(xy, text, **draw_args, fill=foreground)
-  image = np.array(pil_image)
+  image = np.asarray(pil_image)
   return image
 
 
