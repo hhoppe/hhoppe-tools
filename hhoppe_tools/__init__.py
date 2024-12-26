@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.5'
+__version__ = '1.5.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2598,9 +2598,6 @@ def rasterized_text(
   >>> 17 <= image.shape[0] <= 19, 42 <= image.shape[1] <= 44, image.shape[2]
   (True, True, 3)
   """
-  import PIL.Image
-  import PIL.ImageDraw
-
   text = text.rstrip('\n')
   num_lines = text.count('\n') + 1
   background = np.broadcast_to(background, 3)
@@ -2613,26 +2610,25 @@ def rasterized_text(
   draw_args = dict(font=font, anchor='la', spacing=spacing, align=typing.cast(Any, textalign))
 
   def get_height_width_y() -> tuple[float, float, float]:
-    dummy_pil_image = PIL.Image.fromarray(np.full((1, 1, 3), 0, np.uint8))
-    draw = PIL.ImageDraw.Draw(dummy_pil_image)
-    # We could instead use "ascent, descent = font.getmetrics()" but it seems less accurate.
-    canonical_text = '\n'.join(['by'] * num_lines)  # Representative ascender and descender.
-    unused_l, t, unused_r, b = draw.multiline_textbbox((0, 0), canonical_text, **draw_args)
-    width = draw.multiline_textbbox((0, 0), text, **draw_args)[2]
-    text1 = re.sub(r'[^\n]', 'm', text)
-    width1 = draw.multiline_textbbox((0, 0), text1, **draw_args)[2]
-    # Often, the last character on a line is wider by 1 pixel, so we stabilize that case.
-    if width + 1 == width1:
-      width = width1
-    return b - t, width, -t
+    dummy_array = np.full((1, 1, 3), 0, np.uint8)
+    with pil_draw(dummy_array) as draw:
+      # We could instead use "ascent, descent = font.getmetrics()" but it seems less accurate.
+      canonical_text = '\n'.join(['by'] * num_lines)  # Representative ascender and descender.
+      unused_l, t, unused_r, b = draw.multiline_textbbox((0, 0), canonical_text, **draw_args)
+      width = draw.multiline_textbbox((0, 0), text, **draw_args)[2]
+      text1 = re.sub(r'[^\n]', 'm', text)
+      width1 = draw.multiline_textbbox((0, 0), text1, **draw_args)[2]
+      # Often, the last character on a line is wider by 1 pixel, so we stabilize that case.
+      if width + 1 == width1:
+        width = width1
+      return b - t, width, -t
 
   height, width, y = get_height_width_y()
   shape = math.ceil(height + margin[0].sum()), math.ceil(max(width + margin[1].sum(), min_width))
-  pil_image = PIL.Image.fromarray(np.full((*shape, 3), background, dtype=np.uint8))
-  draw = PIL.ImageDraw.Draw(pil_image)
-  xy = margin[1, 0], margin[0, 0] + y
-  draw.text(xy, text, **draw_args, fill=foreground)
-  image = np.asarray(pil_image)
+  image = np.full((*shape, 3), background, dtype=np.uint8)
+  with pil_draw(image) as draw:
+    xy = margin[1, 0], margin[0, 0] + y
+    draw.text(xy, text, **draw_args, fill=foreground)
   return image
 
 
