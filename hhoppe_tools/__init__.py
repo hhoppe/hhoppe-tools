@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.6'
+__version__ = '1.5.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2320,6 +2320,7 @@ def assemble_arrays(
     align: _ArrayLike = 'center',
     spacing: _ArrayLike = 0,
     round_to_even: _ArrayLike = False,
+    from_end: bool = False,
 ) -> _NDArray:
   """Return an output array formed as a packed grid of input arrays.
 
@@ -2329,9 +2330,8 @@ def assemble_arrays(
       dimensions `arrays[:].shape[:len(shape)]` may be different and these are packed together as a
       grid to form `output.shape[:len(shape)]`.
     shape: Dimensions of the grid used to unravel the `arrays` before packing. The dimensions must
-      be positive, with `prod(shape) >= len(arrays)`.  One dimension of `shape` may be -1, in which
-      case it is computed automatically as the smallest value such that
-      `prod(shape) >= len(arrays)`.
+      be positive, with `prod(shape) >= len(arrays)`.  Each dimension must either be positive or
+      the special value -1 to indicate that it should be computed for tightest fit.
     background: Broadcastable value used for the unassigned elements of the output array.
     align: Relative position (`'center'`, `'start'`, or `'stop'`) for each input array and for
       each axis within its output grid cell.  The value must be broadcastable onto the shape
@@ -2340,6 +2340,7 @@ def assemble_arrays(
       it must be broadcastable onto the shape `[len(shape)]`.
     round_to_even: If True, ensure that the final output dimension of each axis is even.  The
       value must be broadcastable onto the shape `[len(shape)]`.
+    from_end: If True, start assigning arrays in reverse order from the end of `shape`.
 
   Returns:
     A numpy output array of the same type as the input `arrays`, with
@@ -2368,11 +2369,11 @@ def assemble_arrays(
   round_to_even2 = np.broadcast_to(np.asarray(round_to_even), len(shape))
   del align, spacing, round_to_even
 
+  head_dims1 = [array.shape[: len(shape)] for array in arrays]
+  extra_dims = [(0,) * len(shape)] * (math.prod(shape) - num)
+  head_dims1 = extra_dims + head_dims1 if from_end else head_dims1 + extra_dims
   # [*shape] -> leading dimensions [:len(shape)] of each input array.
-  head_dims = np.array(
-      [list(array.shape[: len(shape)]) for array in arrays]
-      + [[0] * len(shape)] * (math.prod(shape) - num)
-  ).reshape(*shape, len(shape))
+  head_dims = np.array(head_dims1).reshape(*shape, len(shape))
 
   # For each axis, find the length and position of each slice of input arrays.
   axis_lengths, axis_origins = [], []
@@ -2400,7 +2401,8 @@ def assemble_arrays(
 
   # Copy each input array to its packed, aligned location in the output array.
   for i, array in enumerate(arrays):
-    coords = np.unravel_index(i, shape)
+    grid_index = (math.prod(shape) - num) + i if from_end else i
+    coords = np.unravel_index(grid_index, shape)
     slices = []
     for axis in range(len(shape)):
       cell_start = origins[coords][axis]

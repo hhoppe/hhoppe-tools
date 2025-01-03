@@ -158,3 +158,16 @@ def test_function_in_temporary_module() -> None:
     assert function.__name__ == 'function2'
     assert function.__module__.startswith('temp_module_')
     assert function(5, 4) == 108
+
+
+def test_assemble_array() -> None:
+  arrays = [
+      np.array([[1, 2, 3]]),
+      np.array([[4], [5]]),
+      np.array([[6]]),
+      np.array([[7, 8]]),
+      np.array([[9, 1, 2]]),
+  ]
+  result = hh.assemble_arrays(arrays, shape=(2, 3), from_end=True)
+  expected = np.array([[0, 1, 2, 3, 0, 4, 0], [0, 0, 0, 0, 0, 5, 0], [6, 7, 8, 0, 9, 1, 2]])
+  assert np.all(result == expected), result
