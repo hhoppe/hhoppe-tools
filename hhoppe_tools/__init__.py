@@ -478,14 +478,14 @@ def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
 
-  display(IPython.display.HTML(text))  # type: ignore[attr-defined]
+  display(IPython.display.HTML(text))
 
 
 def display_math(text: str, /) -> None:
   """In a Jupyter notebook, display the LaTeX `text`."""
   import IPython.display
 
-  display(IPython.display.Math(text))  # type: ignore[attr-defined]
+  display(IPython.display.Math(text))
 
 
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
