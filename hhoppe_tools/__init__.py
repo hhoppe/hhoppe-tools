@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.7'
+__version__ = '1.5.8'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
