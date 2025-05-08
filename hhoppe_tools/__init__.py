@@ -1856,7 +1856,7 @@ def bounding_slices(a: _ArrayLike, /) -> tuple[slice, ...]:
   a = np.atleast_1d(a)
   slices = []
   for dim in range(a.ndim):
-    line = a.any(axis=tuple(i for i in range(a.ndim) if i != dim))
+    line: Any = a.any(axis=tuple(i for i in range(a.ndim) if i != dim))
     (indices,) = line.nonzero()
     if indices.size:
       vmin, vmax = indices[[0, -1]]
@@ -2461,7 +2461,8 @@ def stack_arrays(
     for axis, size in enumerate(array.shape):
       aligned_start = _offset(dims[axis], size, align2[i, axis])
       slices.append(slice(aligned_start, aligned_start + size))
-    output_array[(i, *slices)] = array
+    t: tuple[int | slice, ...] = i, *slices
+    output_array[t] = array
 
   return output_array
 
