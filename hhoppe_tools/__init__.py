@@ -108,7 +108,7 @@ try:
   import numba
 except ModuleNotFoundError:
   numba = sys.modules['numba'] = types.ModuleType('numba')
-  numba.njit = noop_decorator
+  numba.njit = noop_decorator  # type: ignore[attr-defined]
 
 
 # ** Language extensions
