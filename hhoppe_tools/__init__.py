@@ -1959,7 +1959,7 @@ def grid_from_string(
   # grid = np.array(list(map(list, string.splitlines())))  # Slow.
   lines = string.splitlines()
   height, width = len(lines), len(lines[0])
-  grid = np.empty((height, width), 'U1')
+  grid: _NDArray = np.empty((height, width), 'U1')
   dtype_for_row = f'U{width}'
   for i, line in enumerate(lines):
     grid[i].view(dtype_for_row)[0] = line
@@ -2845,7 +2845,7 @@ def image_from_plt(fig: Any, background: _ArrayLike = 255) -> _NDArray:
     # See https://github.com/matplotlib/matplotlib/issues/17118#issuecomment-612988008
     fig.savefig(io_buf, format='raw', dpi=fig.dpi)
     shape = int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), 4  # RGBA.
-    image = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
+    image: _NDArray = np.frombuffer(io_buf.getvalue(), np.uint8).reshape(shape)
     image = _composite_over_background(image, background)
     return image
 
