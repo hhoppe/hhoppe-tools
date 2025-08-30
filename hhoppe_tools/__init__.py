@@ -13,10 +13,11 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.8'
+__version__ = '1.5.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
+import builtins
 import collections.abc
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
@@ -139,6 +140,77 @@ def assert_not_none(value: _T | None, /) -> _T:
   """
   assert value is not None
   return value
+
+
+# ** Input-Output end-of-line (EOL) treatment
+
+
+@typing.no_type_check  # For mypy errors [no-untyped-def, misc].
+def apply_patches_so_output_uses_unix_newline() -> None:
+  """Apply patches to the Python library to output Unix '\n' newline even on the Windows platform.
+
+  This applies to text output in: sys.stdout, sys.stderr, open(), pathlib.Path.open(),
+    pathlib.Path.write_text(), and subprocess.Popen(text=True).
+  """
+  if sys.platform != 'win32':
+    return
+
+  for stream in [sys.stdout, sys.stderr]:
+    stream.reconfigure(newline='\n')
+
+  def apply_patch(target, attribute_name: str) -> Any:
+    """Decorator that patches a target object's attribute function as a side effect."""
+
+    def decorator(patch_func) -> Any:
+      original_func = getattr(target, attribute_name)
+
+      @functools.wraps(original_func)
+      def wrapper(*args, **kwargs) -> Any:
+        return patch_func(original_func, *args, **kwargs)
+
+      if not hasattr(original_func, '_unix_eol_patched'):
+        setattr(wrapper, '_unix_eol_patched', True)
+        setattr(target, attribute_name, wrapper)
+      return patch_func  # (Dummy value; assigning wrapper to attribute_name is all that matters.)
+
+    return decorator
+
+  @apply_patch(builtins, 'open')
+  def patched_open(original_func, *args, **kwargs) -> Any:
+    mode = args[1] if len(args) >= 2 else kwargs.get('mode', 'r')
+    if 'b' not in mode and 'newline' not in kwargs:
+      kwargs['newline'] = '\n'
+    return original_func(*args, **kwargs)
+
+  @apply_patch(pathlib.Path, 'open')
+  # pylint: disable-next=keyword-arg-before-vararg
+  def patched_pathlib_open(original_func, self, mode: str = 'r', *args, **kwargs) -> Any:
+    if 'b' not in mode and 'newline' not in kwargs:
+      kwargs['newline'] = '\n'
+    return original_func(self, mode, *args, **kwargs)
+
+  @apply_patch(pathlib.Path, 'write_text')
+  def patched_write_text(original_func, self, data: bytes, *args, **kwargs) -> Any:
+    if 'newline' not in kwargs:
+      kwargs['newline'] = '\n'
+    return original_func(self, data, *args, **kwargs)
+
+  # Possibly also consider: io.open(), csv.writer.
+
+  if not hasattr(subprocess.Popen[str], '_unix_eol_patched'):
+
+    class PatchedSubprocessPopen(subprocess.Popen[str]):
+      """Patched version that configures the stdin stream to have unix eol."""
+
+      def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if kwargs.get('text') or kwargs.get('universal_newlines'):
+          for stream in [self.stdin]:  # Not needed for stdout/stderr due to universal newlines.
+            if stream and hasattr(stream, 'reconfigure'):
+              stream.reconfigure(newline='\n')
+
+    setattr(PatchedSubprocessPopen, '_unix_eol_patched', True)
+    setattr(subprocess, 'Popen', PatchedSubprocessPopen)
 
 
 # ** Debugging output
@@ -442,6 +514,7 @@ def in_notebook() -> bool:
   >>> in_notebook()
   False
   """
+  # Alternatively: hasattr(__builtins__, '__IPYTHON__')
   return _get_ipython() is not None
 
 
