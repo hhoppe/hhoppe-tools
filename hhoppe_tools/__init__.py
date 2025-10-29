@@ -64,6 +64,7 @@ _F = TypeVar('_F', bound='Callable[..., Any]')
 
 _UNDEFINED = object()
 
+# Use ": TypeAlias" in Python 3.10.
 _NDArray = numpy.typing.NDArray[Any]
 _DTypeLike = numpy.typing.DTypeLike
 _ArrayLike = numpy.typing.ArrayLike
