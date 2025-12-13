@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.5.9'
+__version__ = '1.6.0'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -2863,19 +2863,30 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
   return networkx.kamada_kawai_layout(graph)
 
 
-def rotate_layout_so_node_is_on_left(
-    pos: dict[_T, tuple[float, float]], special_node: _T, angle: float = 0.0
+def rotate_layout_by_angle(
+    pos: dict[_T, tuple[float, float]], angle: float = 0.0
 ) -> dict[_T, tuple[float, float]]:
-  """Rotate `pos` dict of `x, y` coords (right, up) so special_node is `angle` clw from -X."""
+  """Rotate `pos` dict of `x, y` coords (right, up) clw by `angle`."""
+  points = np.asarray(list(pos.values()))
+  mean_point = points.mean(0)
+  rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+  new_points = (points - mean_point) @ rotation_matrix.T + mean_point
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
+
+
+def rotate_layout_so_node_is_on_left(
+    pos: dict[_T, tuple[float, float]], special_node: _T
+) -> dict[_T, tuple[float, float]]:
+  """Rotate `pos` dict of `x, y` coords (right, up) so special_node is on -X axis."""
   special_index = list(pos).index(special_node)
   points = np.asarray(list(pos.values()))
   mean_point = points.mean(0)
   translated_points = points - mean_point
   special_point = translated_points[special_index]
-  angle = math.tau * 0.5 - np.arctan2(special_point[1], special_point[0]) - angle
+  angle = math.tau * 0.5 - np.arctan2(special_point[1], special_point[0])
   rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
-  rotated_points = translated_points @ rotation_matrix.T + mean_point
-  return {node: tuple(rotated_point) for node, rotated_point in zip(pos, rotated_points)}
+  new_points = translated_points @ rotation_matrix.T + mean_point
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
 
 
 def rotate_layout_so_principal_component_is_on_x_axis(
@@ -2883,13 +2894,14 @@ def rotate_layout_so_principal_component_is_on_x_axis(
 ) -> dict[_T, tuple[float, float]]:
   """Rotate `pos` dict of `x, y` coords so that its principal axis aligns with the X axis."""
   points = np.asarray(list(pos.values()))
-  centered_points = points - points.mean(0)
+  mean_point = points.mean(0)
+  centered_points = points - mean_point
   cov_matrix = np.cov(centered_points, rowvar=False)
   eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
   order = np.argsort(eigenvalues)[::-1]
   eigenvectors = eigenvectors[:, order]
-  rotated_points = centered_points @ eigenvectors
-  return {node: tuple(rotated_point) for node, rotated_point in zip(pos, rotated_points)}
+  new_points = centered_points @ eigenvectors + mean_point
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
 
 
 def _composite_over_background(image: _NDArray, background: _ArrayLike) -> _NDArray:
