@@ -2573,7 +2573,7 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
   return new_array
 
 
-@numba.njit(cache=True)  # type: ignore[misc]
+@numba.njit(cache=True)  # type: ignore[untyped-decorator]
 def array_index(array: _NDArray, item: Any) -> int:
   """Return the index in `array` of the first element equal to `item`, or -1 if absent.
 
@@ -3173,7 +3173,7 @@ def discrete_binary_search(
   return xl
 
 
-@numba.njit  # type: ignore[misc]
+@numba.njit  # type: ignore[untyped-decorator]
 def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
   """Return the index of the first location of `subseq` in `seq`, or -1 if absent.
 
