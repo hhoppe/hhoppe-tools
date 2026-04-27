@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.0'
+__version__ = '1.6.1'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -1988,7 +1988,7 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
 
 
 def _np_int_from_ch(
-    a: _ArrayLike, /, int_from_ch: Mapping[str, int], dtype: _DTypeLike = None
+    a: _ArrayLike, /, int_from_ch: Mapping[str, int], dtype: _DTypeLike | None = None
 ) -> _NDArray:
   """Return array of integers created by mapping from an array `a` of characters.
 
@@ -2005,7 +2005,7 @@ def _np_int_from_ch(
 
 
 def grid_from_string(
-    string: str, /, int_from_ch: Mapping[str, int] | None = None, dtype: _DTypeLike = None
+    string: str, /, int_from_ch: Mapping[str, int] | None = None, dtype: _DTypeLike | None = None
 ) -> _NDArray:
   r"""Return a 2D array created from a multiline `string`.
 
@@ -2087,7 +2087,7 @@ def grid_from_indices(
     indices_min: int | Sequence[int] | None = None,
     indices_max: int | Sequence[int] | None = None,
     pad: int | Sequence[int] = 0,
-    dtype: _DTypeLike = None,
+    dtype: _DTypeLike | None = None,
 ) -> _NDArray:
   r"""Return an `array` from (sparse) indices or from a map {index: value}.
 
@@ -2891,7 +2891,7 @@ def rotate_layout_so_node_is_on_left(
 
 
 def rotate_layout_so_principal_component_is_on_x_axis(
-    pos: dict[_T, tuple[float, float]]
+    pos: dict[_T, tuple[float, float]],
 ) -> dict[_T, tuple[float, float]]:
   """Rotate `pos` dict of `x, y` coords so that its principal axis aligns with the X axis."""
   points = np.asarray(list(pos.values()))
