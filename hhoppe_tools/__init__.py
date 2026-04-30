@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.1'
+__version__ = '1.6.2'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -45,7 +45,7 @@ import time
 import traceback
 import types
 import typing
-from typing import Any, Generic, Literal, TypeVar, Union
+from typing import Any, Generic, Literal, TypeAlias, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
 import uuid
 import warnings
@@ -65,11 +65,10 @@ _F = TypeVar('_F', bound='Callable[..., Any]')
 
 _UNDEFINED = object()
 
-# Use ": TypeAlias" in Python 3.10.
-_NDArray = numpy.typing.NDArray[Any]
-_DTypeLike = numpy.typing.DTypeLike
-_ArrayLike = numpy.typing.ArrayLike
-_Path = Union[str, os.PathLike[str]]
+_NDArray: TypeAlias = numpy.typing.NDArray[Any]
+_DTypeLike: TypeAlias = numpy.typing.DTypeLike
+_ArrayLike: TypeAlias = numpy.typing.ArrayLike
+_Path: TypeAlias = Union[str, os.PathLike[str]]
 
 # ** numba
 
@@ -325,7 +324,7 @@ def _dump_vars(*args: Any) -> str:
         expressions = [parameter_string.strip()]
       else:
         node = ast.parse(parameter_string)
-        # print(ast.dump(node))  # ", indent=2" requires Python 3.9.
+        # print(ast.dump(node, indent=2))
         value = getattr(node.body[0], 'value', '?')
         elements = getattr(value, 'elts', [value])
 
@@ -335,7 +334,7 @@ def _dump_vars(*args: Any) -> str:
 
         expressions = [get_text(element) for element in elements]
       l = []
-      for expr, value in zip(expressions, args):  # Python 3.10: strict=True.
+      for expr, value in zip(expressions, args, strict=True):
         l.append(f'{expr} = {value}' if expr[0] not in '"\'' else str(value))
       return ', '.join(l)
 
@@ -714,10 +713,7 @@ def pdoc_help(
       return all(x == y for x, y in zip(qualname.split('.'), thing_name.split('.')))
 
     pdoc.render.env.globals['should_show'] = should_show
-    with warnings.catch_warnings():
-      # Ignore the fact that pdoc cannot parse annotations of the form "x | y" with Python <3.10.
-      warnings.filterwarnings(action='ignore', message='Error parsing type annotation')
-      html = pdoc.render.html_module(module=doc, all_modules={})
+    html = pdoc.render.html_module(module=doc, all_modules={})
 
   # Limit the maximum width.
   html = '<style>main.pdoc {max-width: 784px;}</style>\n' + html
@@ -1062,9 +1058,7 @@ def selective_lru_cache(
       return helper(*args, **kwargs)
 
     for attribute in ['cache_clear', 'cache_info', 'cache_parameters']:
-      value = getattr(helper, attribute, None)
-      if value:  # 'cache_parameters' added only in Python 3.9.
-        setattr(wrapper, attribute, value)
+      setattr(wrapper, attribute, getattr(helper, attribute))
     return typing.cast(_F, wrapper)
 
   return decorator
@@ -1333,7 +1327,7 @@ def solve_modulo_congruences(remainders: Sequence[int], moduli: Sequence[int]) -
 
   r, m = remainders[0], moduli[0]
 
-  for r2, m2 in zip(remainders[1:], moduli[1:]):  # Python 3.10: strict=True
+  for r2, m2 in zip(remainders[1:], moduli[1:], strict=True):
     g, x, _ = extended_gcd(m, m2)
     assert r % g == r2 % g
     if (r2 - r) % g != 0:
@@ -2827,11 +2821,7 @@ class UnionFind(Generic[_T]):
     if a not in self._rep:
       return a
     parents = []
-    # while (parent := self._rep.setdefault(a, a)) != a:  # Python 3.10
-    while True:
-      parent = self._rep.setdefault(a, a)
-      if parent == a:
-        break
+    while (parent := self._rep.setdefault(a, a)) != a:
       parents.append(a)
       a = parent
     for p in parents:

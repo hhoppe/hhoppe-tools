@@ -2,7 +2,7 @@
 name = "hhoppe-tools"
 description = "Library of Python tools by Hugues Hoppe"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Hugues Hoppe", email="hhoppe@gmail.com"}]
 classifiers = [
