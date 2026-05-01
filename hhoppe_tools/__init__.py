@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.2'
+__version__ = '1.6.3'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -525,12 +525,8 @@ def in_colab() -> bool:
   >>> in_colab()
   False
   """
-  try:
-    import google.colab  # pylint: disable=unused-import # noqa # pytype: disable=import-error
-
-    return True
-  except ModuleNotFoundError:
-    return False
+  # Note that the kaggle.com runtime allows importing google.colab, so we cannot test that.
+  return 'COLAB_BACKEND_VERSION' in os.environ
 
 
 def no_vertical_scroll() -> None:
