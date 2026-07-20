@@ -56,10 +56,6 @@ import numpy.typing
 if typing.TYPE_CHECKING:
   import PIL.ImageDraw
 
-# For np.broadcast_to(), etc.
-# mypy: allow-untyped-calls
-# mypy: disable-error-code="untyped-decorator"
-
 _T = TypeVar('_T')
 _F = TypeVar('_F', bound='Callable[..., Any]')
 
@@ -110,7 +106,7 @@ try:
   import numba
 except ModuleNotFoundError:
   numba = sys.modules['numba'] = types.ModuleType('numba')
-  numba.njit = noop_decorator  # type: ignore[attr-defined]
+  numba.njit = noop_decorator  # type: ignore
 
 
 # ** Language extensions
@@ -541,21 +537,21 @@ def display(obj: Any, /) -> None:
   """In a Jupyter notebook, display the object."""
   import IPython.display
 
-  IPython.display.display(obj)
+  IPython.display.display(obj)  # type: ignore[no-untyped-call]
 
 
 def display_html(text: str, /) -> None:
   """In a Jupyter notebook, display the HTML `text`."""
   import IPython.display
 
-  display(IPython.display.HTML(text))
+  display(IPython.display.HTML(text))  # type: ignore[no-untyped-call]
 
 
 def display_math(text: str, /) -> None:
   """In a Jupyter notebook, display the LaTeX `text`."""
   import IPython.display
 
-  display(IPython.display.Math(text))
+  display(IPython.display.Math(text))  # type: ignore[no-untyped-call]
 
 
 def adjust_jupyterlab_markdown_width(width: int = 1016, /) -> None:
