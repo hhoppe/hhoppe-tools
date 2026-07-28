@@ -3085,10 +3085,10 @@ def wobble_video(
     new_eye = eye + (new_planar_from_center - planar_from_center)
     camera2 = camera.copy()
     camera2['eye'] = _to_xyz(new_eye)
-    fig.layout.update(scene_camera=camera2)
+    fig.update_layout(scene_camera=camera2)
     image_for_rotation[rotation_fraction] = image_from_plotly(fig)
 
-  fig.layout.update(scene_camera=camera)
+  fig.update_layout(scene_camera=camera)
   return [image_for_rotation[rotation_fraction] for rotation_fraction in rotation_fractions]
 
 
@@ -3113,10 +3113,10 @@ def tilt_video(fig: Any) -> list[_NDArray]:
     new_eye = center + np.linalg.norm(from_center) * new_unit_from_center
     camera2 = camera.copy()
     camera2['eye'] = _to_xyz(new_eye)
-    fig.layout.update(scene_camera=camera2)
+    fig.update_layout(scene_camera=camera2)
     image_for_rotation[rotation_fraction] = image_from_plotly(fig)
 
-  fig.layout.update(scene_camera=camera)
+  fig.update_layout(scene_camera=camera)
   return [image_for_rotation[rotation_fraction] for rotation_fraction in rotation_fractions]
 
 
