@@ -13,13 +13,12 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.3'
+__version__ = '1.6.4'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
 import builtins
 import collections.abc
-from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
 import cProfile
 import dataclasses
@@ -45,13 +44,14 @@ import time
 import traceback
 import types
 import typing
-from typing import Any, Generic, Literal, TypeAlias, TypeVar, Union
 import unittest.mock  # pylint: disable=unused-import # noqa
 import uuid
 import warnings
+from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 
 import numpy as np
-import numpy.typing
+import numpy.typing as npt
 
 if typing.TYPE_CHECKING:
   import PIL.ImageDraw
@@ -61,10 +61,10 @@ _F = TypeVar('_F', bound='Callable[..., Any]')
 
 _UNDEFINED = object()
 
-_NDArray: TypeAlias = numpy.typing.NDArray[Any]
-_DTypeLike: TypeAlias = numpy.typing.DTypeLike
-_ArrayLike: TypeAlias = numpy.typing.ArrayLike
-_Path: TypeAlias = Union[str, os.PathLike[str]]
+_NDArray: TypeAlias = npt.NDArray[Any]
+_DTypeLike: TypeAlias = npt.DTypeLike
+_ArrayLike: TypeAlias = npt.ArrayLike
+_Path: TypeAlias = str | os.PathLike[str]
 
 # ** numba
 
@@ -325,7 +325,7 @@ def _dump_vars(*args: Any) -> str:
         elements = getattr(value, 'elts', [value])
 
         def get_text(element: Any) -> str:
-          text = ast.get_source_segment(parameter_string, element)
+          text = ast.get_source_segment(parameter_string, element)  # noqa: B023
           return '?' if text is None else text
 
         expressions = [get_text(element) for element in elements]
@@ -702,9 +702,9 @@ def pdoc_help(
 
     def should_show(qualname: str) -> bool:
       thing_name = getattr(thing, '__qualname__', '')
-      return all(x == y for x, y in zip(qualname.split('.'), thing_name.split('.')))
+      return all(x == y for x, y in zip(qualname.split('.'), thing_name.split('.'), strict=True))
 
-    pdoc.render.env.globals['should_show'] = should_show
+    pdoc.render.env.globals['should_show'] = should_show  # pyrefly: ignore
     html = pdoc.render.html_module(module=doc, all_modules={})
 
   # Limit the maximum width.
@@ -830,7 +830,7 @@ def prun(
   """
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
-  site_packages = list(np.__path__)[0][:-5].replace('\\', '/')
+  site_packages = next(iter(np.__path__))[:-5].replace('\\', '/')
   assert site_packages.endswith(('/site-packages/', '/dist-packages/'))
 
   profile = cProfile.Profile()
@@ -924,7 +924,9 @@ class OrderedEnum(enum.Enum):
 
 
 @contextlib.contextmanager
-def temporary_assignment(variables: dict[str, Any], /, **kwargs: Any) -> Iterator[None]:
+def temporary_assignment(
+    variables: dict[str, Any], /, **kwargs: Any
+) -> Generator[None, None, None]:
   """Temporarily assign `**kwargs` to `variables`.
 
   Args:
@@ -1024,7 +1026,9 @@ def selective_lru_cache(
   >>> func(1, kw1=False)
   1
   """
-  lru_decorator: Callable[[_F], _F] = functools.lru_cache(*args, **kwargs)
+  lru_decorator: Callable[[Callable[..., Any]], Callable[..., Any]] = functools.lru_cache(
+      *args, **kwargs
+  )
 
   class Equals:
     """Wraps an object to replace its equality test and hash function."""
@@ -1100,7 +1104,7 @@ def function_in_temporary_module(
     *,
     header: str = '',
     funcs: Sequence[Any] = (),
-) -> Iterator[_F]:
+) -> Generator[_F, None, None]:
   """Copies function into a new module backed by a Python file, for multiprocessing.
 
   Args:
@@ -1112,7 +1116,7 @@ def function_in_temporary_module(
   Yields:
     function: The new callable in the temporary module.
   """
-  sources = [header] + [inspect.getsource(func) for func in [function] + list(funcs)]
+  sources = [header] + [inspect.getsource(func) for func in [function, *list(funcs)]]
   source = '\n\n\n'.join(textwrap.dedent(text) for text in sources)
 
   old_sys_path = sys.path
@@ -1142,7 +1146,7 @@ def timing(
     /,
     *,
     enabled: bool = True,
-) -> Iterator[None]:
+) -> Generator[None, None, None]:
   """Context that reports elapsed time and multithreaded parallelism.
 
   Args:
@@ -2149,10 +2153,9 @@ def grid_from_indices(
           [  3, 255,   4]]])
   """
   assert isinstance(iterable_or_map, collections.abc.Iterable)
-  is_map = False
+  mapping: Mapping[Sequence[int], Any] | None = None
   if isinstance(iterable_or_map, collections.abc.Mapping):  # Help mypy.
-    is_map = True
-    mapping: Mapping[Sequence[int], Any] = iterable_or_map
+    mapping = iterable_or_map
 
   indices = np.array(list(iterable_or_map))
   if indices.ndim == 1:
@@ -2164,14 +2167,14 @@ def grid_from_indices(
   shape = i_max - i_min + 2 * a_pad + 1
   offset = -i_min + a_pad
   # pylint: disable-next=possibly-used-before-assignment
-  elems = [next(iter(mapping.values()))] if is_map and mapping else []
+  elems = [next(iter(mapping.values()))] if mapping is not None else []
   elems += [background, foreground]
   shape2 = (*shape, *np.broadcast(*elems).shape)
   del shape
   dtype = np.array(elems[0], dtype).dtype
   grid = np.full(shape2, background, dtype)
   indices += offset
-  grid[tuple(indices.T)] = list(mapping.values()) if is_map else foreground
+  grid[tuple(indices.T)] = list(mapping.values()) if mapping is not None else foreground
   return grid
 
 
@@ -2513,7 +2516,7 @@ def stack_arrays(
   del align
 
   # Initialize the output array.
-  dims = tuple(max(ds) for ds in zip(*(array.shape for array in arrays2)))
+  dims = tuple(max(ds) for ds in zip(*(array.shape for array in arrays2), strict=True))
   output_array = np.full((num, *dims), background, arrays2[0].dtype)
 
   # Copy each input array to its aligned location in the output array.
@@ -2587,7 +2590,7 @@ def array_index(array: _NDArray, item: Any) -> int:
 
 
 @contextlib.contextmanager
-def pil_draw(image: _NDArray) -> Iterator[PIL.ImageDraw.ImageDraw]:
+def pil_draw(image: _NDArray) -> Generator[PIL.ImageDraw.ImageDraw, None, None]:
   """Create a PIL.ImageDraw.Draw whose content is copied back to `image` upon exit.
 
   >>> image = np.full((10, 10, 3), 255, np.uint8)
@@ -2611,7 +2614,7 @@ def _get_pil_font(font_size: int, font_name: str) -> Any:
   import matplotlib
   import PIL.ImageFont
 
-  font_file = f'{list(matplotlib.__path__)[0]}/mpl-data/fonts/ttf/{font_name}.ttf'
+  font_file = f'{next(iter(matplotlib.__path__))}/mpl-data/fonts/ttf/{font_name}.ttf'
   return PIL.ImageFont.truetype(font_file, font_size)  # Slow ~1.3 s but gets cached.
 
 
@@ -2726,7 +2729,8 @@ def overlay_text(
   yx = np.asarray(yx)
   assert yx.shape == (2,)
   assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
-  if tuple(map(int, PIL.__version__.split('.'))) < (8, 0):
+  version = (*(int(s) for s in re.findall(r'\d+', PIL.__version__)), 0, 0)
+  if version[:2] < (8, 0):
     warnings.warn('Pillow<8.0 lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
     return
   text_image = rasterized_text(text, **kwargs)
@@ -2737,7 +2741,7 @@ def overlay_text(
       yx[1] + {'l': 0, 'c': -mid[1], 'r': -text_shape[1]}[align[1]],
   )
   slices = tuple(slice(top_left[c], top_left[c] + text_shape[c]) for c in range(2))
-  if not all(0 <= s.start <= s.stop <= stop for s, stop in zip(slices, image_shape)):
+  if not all(0 <= s.start <= s.stop <= stop for s, stop in zip(slices, image_shape, strict=True)):
     raise ValueError(f'Cannot place {text_shape=} at {top_left=} in {image_shape=}; {yx=}.')
   image[slices] = text_image
 
@@ -2828,22 +2832,18 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
   """Return dictionary of 2D coordinates for layout of graph nodes."""
   import networkx
 
-  try:
+  with contextlib.suppress(ImportError):
     if sys.platform == 'win32':
       path = pathlib.Path(r'C:\Program Files\Graphviz\bin')
       if path.is_dir() and str(path) not in os.environ['PATH']:
         os.environ['PATH'] += f';{path}'
     args = '-Gstart=1'  # Deterministically seed the graphviz random number generator.
     return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
-  except ImportError:
-    pass
   if 0:  # pydot is deprecated; https://github.com/networkx/networkx/issues/5723
-    try:
+    with contextlib.suppress(ImportError):
       return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
-    except ImportError:
-      pass
   print('Cannot reach graphviz; resorting to simpler layout.')
-  return networkx.kamada_kawai_layout(graph)
+  return {k: (float(v1), float(v2)) for k, (v1, v2) in networkx.kamada_kawai_layout(graph).items()}
 
 
 def rotate_layout_by_angle(
@@ -2854,7 +2854,7 @@ def rotate_layout_by_angle(
   mean_point = points.mean(0)
   rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
   new_points = (points - mean_point) @ rotation_matrix.T + mean_point
-  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points, strict=True)}
 
 
 def rotate_layout_so_node_is_on_left(
@@ -2869,7 +2869,7 @@ def rotate_layout_so_node_is_on_left(
   angle = math.tau * 0.5 - np.arctan2(special_point[1], special_point[0])
   rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
   new_points = translated_points @ rotation_matrix.T + mean_point
-  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points, strict=True)}
 
 
 def rotate_layout_so_principal_component_is_on_x_axis(
@@ -2884,7 +2884,7 @@ def rotate_layout_so_principal_component_is_on_x_axis(
   order = np.argsort(eigenvalues)[::-1]
   eigenvectors = eigenvectors[:, order]
   new_points = centered_points @ eigenvectors + mean_point
-  return {node: tuple(new_point) for node, new_point in zip(pos, new_points)}
+  return {node: tuple(new_point) for node, new_point in zip(pos, new_points, strict=True)}
 
 
 def _composite_over_background(image: _NDArray, background: _ArrayLike) -> _NDArray:
@@ -3020,7 +3020,7 @@ def mesh3d_from_cubes(
   import plotly.graph_objects as go
 
   x, y, z, i, j, k, colors = [], [], [], [], [], [], []
-  for index, (cube, facecolor) in enumerate(zip(cubes, facecolors)):
+  for index, (cube, facecolor) in enumerate(zip(cubes, facecolors, strict=True)):
     x0, y0, z0, x1, y1, z1 = cube
     x.extend([x0, x0, x1, x1, x0, x0, x1, x1])
     y.extend([y0, y1, y1, y0, y0, y1, y1, y0])
@@ -3290,7 +3290,7 @@ def run(args: str | Sequence[str], /) -> None:
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
       check=False,
-      universal_newlines=True,
+      text=True,
   )
   print(proc.stdout, end='', flush=True)
   if proc.returncode:

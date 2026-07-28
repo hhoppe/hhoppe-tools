@@ -84,16 +84,39 @@ good-names-rgxs = "^[a-z][a-z0-9]?|[A-Z]([A-Z_]*[A-Z])?$"
 indent-string = "  "
 expected-line-ending-format = "LF"
 
+[tool.pyrefly]
+min-severity = "warn"
+
+[tool.pyrefly.errors]
+missing-import = false
+redundant-condition = false
+untyped-import = false
+
 [tool.pytest.ini_options]
 addopts = "--ignore-glob '*.#*' --doctest-modules"
 
-# Placeholder; unsupported.
-[tool.flake8]
-indent-size = 2
-# max-line-length = 100
-# ignore = "E121,E125,E126,E226,E704,W503,W504,E129,E203,E302,E305,E501,E74,E7311
-extend-ignore = "E129,E203,E302,E305,E501,E741"
-extend-select = "E24"
-# select = "C,E,F,W,B,B950"
-# extend-ignore = "E203,E501"
-exclude = ".ipynb_checkpoints"
+[tool.ruff]
+extend-exclude = [
+    # ".ipynb_checkpoints",
+    # "*_other*.py",
+    # "Other",
+]
+# indent-width = 2  # Too primitive; see below.
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",
+    "B", "C", "UP", "SIM", "RUF", "NPY", "PTH", "PERF",
+    "ISC", "ICN", "PIE", "RET", "TID", "TC", "I",
+]
+extend-ignore = [
+    "E501", "E721", "E741",
+    "B010", "B028", "C408", "C901",
+    "TC003", "TC006", "SIM300", "ICN001", "RET504",
+]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?)|unused_.*)$"
+
+[tool.ruff.format]
+# The command "ruff format --diff" is too primitive.
+# It does not support 4-space indent inside parentheses/brackets/braces.
+# quote-style = "single"

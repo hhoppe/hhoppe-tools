@@ -8,6 +8,7 @@ import math
 from typing import Any
 
 import numpy as np
+
 import hhoppe_tools as hh
 
 # pylint: disable=missing-function-docstring, protected-access
