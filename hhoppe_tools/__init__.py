@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.4'
+__version__ = '1.6.5'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -112,30 +112,31 @@ except ModuleNotFoundError:
 # ** Language extensions
 
 
-def assert_not_none(value: _T | None, /) -> _T:
+def not_none(value: _T | None, /) -> _T:
   """Return value after asserting that it is not None.
 
-  >>> assert_not_none('word')
+  >>> not_none('word')
   'word'
 
-  >>> assert_not_none(0)
+  >>> not_none(0)
   0
 
-  >>> assert_not_none('')
+  >>> not_none('')
   ''
 
-  >>> assert_not_none(())
+  >>> not_none(())
   ()
 
-  >>> assert_not_none(False)
+  >>> not_none(False)
   False
 
-  >>> assert_not_none(None)
+  >>> not_none(None)
   Traceback (most recent call last):
   ...
-  AssertionError
+  AssertionError: Value is unexpectedly None.
   """
-  assert value is not None
+  if value is None:
+    raise AssertionError('Value is unexpectedly None.')
   return value
 
 
@@ -831,7 +832,7 @@ def prun(
   assert callable(func)
   assert mode in ('original', 'full', 'tottime'), mode
   site_packages = next(iter(np.__path__))[:-5].replace('\\', '/')
-  assert site_packages.endswith(('/site-packages/', '/dist-packages/'))
+  assert site_packages.endswith(('/site-packages/', '/dist-packages/')), site_packages
 
   profile = cProfile.Profile()
   try:
@@ -1811,7 +1812,7 @@ def to_image(a: _ArrayLike, /, color0: _ArrayLike = 0, color1: _ArrayLike = 255)
           [255,   0,   0]]], dtype=uint8)
   """
   a = np.asarray(a)
-  assert a.dtype == bool
+  assert a.dtype == bool, a.dtype
   image = np.full((*a.shape, 3), color0, np.uint8)
   image[a] = color1
   return image
@@ -2160,7 +2161,8 @@ def grid_from_indices(
   indices = np.array(list(iterable_or_map))
   if indices.ndim == 1:
     indices = indices[:, None]
-  assert indices.ndim == 2 and np.issubdtype(indices.dtype, np.integer)
+  assert indices.ndim == 2, indices.shape
+  assert np.issubdtype(indices.dtype, np.integer), indices.dtype
   i_min = np.min(indices, axis=0) if indices_min is None else np.full(indices.shape[1], indices_min)
   i_max = np.max(indices, axis=0) if indices_max is None else np.full(indices.shape[1], indices_max)
   a_pad = np.asarray(pad)
@@ -2548,7 +2550,7 @@ def shift(array: _ArrayLike, offset: _ArrayLike, /, constant_values: _ArrayLike 
   """
   array = np.asarray(array)
   offset = np.atleast_1d(offset)
-  assert offset.shape == (array.ndim,)
+  assert offset.shape == (array.ndim,), (offset.shape, array.shape)
   new_array = np.empty_like(array)
 
   def slice_axis(o: int) -> slice:
@@ -2725,10 +2727,11 @@ def overlay_text(
   """
   import PIL
 
-  assert image.ndim == 3 and image.dtype == np.uint8
+  assert image.ndim == 3, image.shape
+  assert image.dtype == np.uint8, image.dtype
   yx = np.asarray(yx)
-  assert yx.shape == (2,)
-  assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr'
+  assert yx.shape == (2,), yx.shape
+  assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr', align
   version = (*(int(s) for s in re.findall(r'\d+', PIL.__version__)), 0, 0)
   if version[:2] < (8, 0):
     warnings.warn('Pillow<8.0 lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
@@ -2935,7 +2938,7 @@ def images_from_animation(animation: Any, background: _ArrayLike = 255) -> list[
     def setup(self, fig: Any, outfile: Any, dpi: float | None = None) -> None:
       del outfile
       self.fig = fig
-      assert dpi is None or dpi == self.fig.dpi
+      assert dpi is None or dpi == self.fig.dpi, (dpi, self.fig.dpi)
 
     def grab_frame(self, **_: Any) -> None:
       if 0:  # Unnecessary.
@@ -2988,8 +2991,8 @@ def mesh3d_from_height(
   import plotly.graph_objects as go
 
   grid = np.asarray(grid)
-  assert grid.ndim == 2
-  assert not (color is not None and facecolor is None)
+  assert grid.ndim == 2, grid.shape
+  assert not (color is not None and facecolor is None), (color, facecolor)
   yy, xx = np.arange(grid.shape[0] + 1).repeat(2), np.arange(grid.shape[1] + 1).repeat(2)
   y, x = yy.repeat(len(xx)), np.tile(xx, len(yy))
   z = np.pad(grid.repeat(2, axis=0).repeat(2, axis=1), 1, constant_values=0.0).ravel()
@@ -3145,7 +3148,7 @@ def discrete_binary_search(
   >>> discrete_binary_search(lambda x: x**2, 0, 20, 25)
   5
   """
-  assert xl < xh
+  assert xl < xh, (xl, xh)
   while xh - xl > 1:
     xm = (xl + xh) // 2
     ym = feval(xm)
