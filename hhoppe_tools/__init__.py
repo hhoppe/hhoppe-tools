@@ -4,7 +4,7 @@
 
 Useful commands to lint and test this module:
 ```shell
-cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo pyink; pyink --diff .; echo mypy; mypy .; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
+cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo pyink; pyink --diff .; echo mypy; mypy; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
 env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 ```
@@ -529,7 +529,8 @@ def in_colab() -> bool:
 def no_vertical_scroll() -> None:
   """If in Colab, omit vertical scrollbar in cell output."""
   if in_colab():
-    import google.colab.output  # pylint: disable=import-error,no-name-in-module # pytype:disable=import-error
+    # pylint: disable-next=import-error, no-name-in-module
+    import google.colab.output  # pytype: disable=import-error
 
     google.colab.output.no_vertical_scroll()  # pylint: disable=c-extension-no-member
 
