@@ -530,7 +530,7 @@ def no_vertical_scroll() -> None:
   """If in Colab, omit vertical scrollbar in cell output."""
   if in_colab():
     # pylint: disable-next=import-error, no-name-in-module
-    import google.colab.output  # pytype: disable=import-error
+    import google.colab.output
 
     google.colab.output.no_vertical_scroll()  # pylint: disable=c-extension-no-member
 
