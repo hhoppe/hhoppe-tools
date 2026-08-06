@@ -13,7 +13,7 @@ env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../pass
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.5'
+__version__ = '1.6.6'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -3299,6 +3299,63 @@ def run(args: str | Sequence[str], /) -> None:
   print(proc.stdout, end='', flush=True)
   if proc.returncode:
     raise RuntimeError(f"Command '{proc.args}' failed with code {proc.returncode}.")
+
+
+# ** numba-cuda
+
+
+def patch_numba_cuda_for_python314() -> None:
+  """Workarounds for numba-cuda's 3.14 gaps; see numba issue #10319."""
+  if sys.version_info < (3, 14):
+    return
+  # pylint: disable=import-error, no-name-in-module, protected-access, no-member
+
+  import dis
+
+  from numba.cuda.core import byteflow as _byteflow
+  from numba.cuda.core import interpreter as _interpreter
+  from numba.cuda.core import ir as _ir
+
+  common_constants = dis._common_constants  # type: ignore[attr-defined, unused-ignore]
+
+  def _op_load_common_constant(self: Any, state: Any, inst: Any) -> None:
+    """Support `assert`; numba-cuda wrongly applies isinstance() to a class object."""
+    del self
+    if common_constants[inst.arg] is not AssertionError:
+      raise NotImplementedError
+    res = state.make_temp('assertion_error')
+    state.append(inst, res=res, idx=inst.arg)
+    state.push(res)
+
+  def _op_set_function_attribute(self: Any, state: Any, inst: Any) -> None:
+    """Support the 3.14 __annotate__ attribute (flag 0x10), which numba ignores anyway."""
+    del self
+    make_func_stack = state.pop()
+    data = state.pop()
+    if inst.arg & 0x10:
+      pass  # Discard the annotate function.
+    elif inst.arg & 0x1:
+      state.set_function_attribute(make_func_stack, defaults=data)
+    elif inst.arg & 0x2:
+      state.set_function_attribute(make_func_stack, kwdefaults=data)
+    elif inst.arg & 0x4:
+      state.set_function_attribute(make_func_stack, annotations=data)
+    elif inst.arg & 0x8:
+      state.set_function_attribute(make_func_stack, closure=data)
+    else:
+      raise AssertionError('unreachable')
+    state.push(make_func_stack)
+
+  def _op_load_common_constant_ir(self: Any, inst: Any, res: Any, idx: Any) -> None:
+    """Same fix as above, in the IR interpreter rather than the CFG builder."""
+    del inst
+    if common_constants[idx] is not AssertionError:
+      raise NotImplementedError
+    self.store(value=_ir.Global('AssertionError', AssertionError, loc=self.loc), name=res)
+
+  _byteflow.TraceRunner.op_LOAD_COMMON_CONSTANT = _op_load_common_constant
+  _byteflow.TraceRunner.op_SET_FUNCTION_ATTRIBUTE = _op_set_function_attribute
+  _interpreter.Interpreter.op_LOAD_COMMON_CONSTANT = _op_load_common_constant_ir
 
 
 if __name__ == '__main__':
