@@ -51,7 +51,6 @@ recursive = true
 exclude = ".ipynb_checkpoints"
 
 [tool.mypy]
-cache_dir = "~/.cache/mypy"
 ignore_missing_imports = true
 strict = true
 warn_return_any = false  # buggy numpy
