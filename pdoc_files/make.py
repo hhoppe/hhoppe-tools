@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create HTML documentation from the source code using `pdoc`."""
+
 # Note: Invoke this script from the parent directory as "pdoc_files/make.py".
 
 import pathlib

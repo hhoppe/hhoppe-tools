@@ -503,7 +503,7 @@ def divide_slice(sl: slice, n: int) -> Iterator[slice]:
 def _get_ipython() -> Any:
   import IPython
 
-  return IPython.get_ipython()  # type: ignore
+  return IPython.get_ipython()  # type: ignore[attr-defined, no-untyped-call, unused-ignore]  # Needed on Windows.
 
 
 def in_notebook() -> bool:
