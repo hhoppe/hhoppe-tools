@@ -2671,7 +2671,7 @@ def rasterized_text(
   text = text.rstrip('\n')
   num_lines = text.count('\n') + 1
   background = np.broadcast_to(background, 3)
-  foreground = tuple(np.broadcast_to(foreground, 3))
+  foreground = tuple(int(c) for c in np.broadcast_to(foreground, 3))
   margin = np.broadcast_to(margin, (2, 2))
   font = _get_pil_font(fontsize, fontname)
   if spacing is None:
