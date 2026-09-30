@@ -26,17 +26,14 @@ homepage = "https://github.com/hhoppe/hhoppe-tools"
 repository = "https://github.com/hhoppe/hhoppe-tools"
 # Other: `documentation`, `changelog`
 
-[project.optional-dependencies]
-# Development deps (unittest, linting, formatting,...)
-# Installed through `pip install .[dev]`
-dev = [
-    "matplotlib",
-    "pdoc",
-    "Pillow",
-    "IPython",
-    # "pytest",
-    # "pytest-xdist",
-    # "pylint>=2.6.0",
+# Development requirements (PEP 735), which are not part of the published package metadata.
+# CI installs them with `pip install . --group test` or `pip install . --group lint`.
+[dependency-groups]
+test = ["IPython", "matplotlib", "pdoc", "Pillow", "pytest"]
+lint = [
+    "mypy", "pyink", "pylint", "pyrefly", "ruff",
+    # Optional imports, so that the checkers see the same modules as locally.
+    "IPython", "matplotlib", "mediapy", "networkx", "numba", "pdoc", "Pillow", "plotly",
 ]
 
 [build-system]
