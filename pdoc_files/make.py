@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create HTML documentation from the source code using `pdoc`."""
 
-# Note: Invoke this script from the parent directory as "pdoc_files/make.py".
+# Note: Invoke this from the parent directory as "python3 pdoc_files/make.py".
 
 import pathlib
 
@@ -33,16 +33,14 @@ def main() -> None:
 
   if 1:
     output_file = OUTPUT_DIRECTORY / 'hhoppe_tools.html'
-    text = output_file.read_text()
-    # collections.abc.Iterable -> Iterable.
+    text = output_file.read_text(encoding='utf-8')
+    # typing.Any -> Any, in the signatures.  (Other rewrites, e.g. of collections.abc.* and
+    # typing.*, would only alter the displayed source code.)
     text = text.replace(
-        '<span class="n">collections</span><span class="o">'
-        '.</span><span class="n">abc</span><span class="o">.</span>',
-        '',
+        '<span class="n">typing</span><span class="o">.</span><span class="n">Any<',
+        '<span class="n">Any<',
     )
-    # typing.* -> *.
-    text = text.replace('<span class="n">typing</span><span class="o">.</span>', '')
-    output_file.write_text(text)
+    output_file.write_text(text, encoding='utf-8', newline='\n')
 
 
 if __name__ == '__main__':

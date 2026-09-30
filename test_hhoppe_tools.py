@@ -5,9 +5,12 @@
 from __future__ import annotations
 
 import math
+import sys
+import warnings
 from typing import Any
 
 import numpy as np
+import pytest
 
 import hhoppe_tools as hh
 
@@ -100,9 +103,11 @@ def test_selective_lru_cache() -> None:
 
 def test_stack_arrays() -> None:
   arrays = [[1, 2], [4, 5, 6], [7]]
-  assert np.all(hh.stack_arrays(arrays) == [[1, 2, 0], [4, 5, 6], [0, 7, 0]])
-  assert np.all(hh.stack_arrays(arrays, align='start') == [[1, 2, 0], [4, 5, 6], [7, 0, 0]])
-  assert np.all(hh.stack_arrays(arrays, align='stop') == [[0, 1, 2], [4, 5, 6], [0, 0, 7]])
+  np.testing.assert_array_equal(hh.stack_arrays(arrays), [[1, 2, 0], [4, 5, 6], [0, 7, 0]])
+  expected_start = [[1, 2, 0], [4, 5, 6], [7, 0, 0]]
+  np.testing.assert_array_equal(hh.stack_arrays(arrays, align='start'), expected_start)
+  expected_stop = [[0, 1, 2], [4, 5, 6], [0, 0, 7]]
+  np.testing.assert_array_equal(hh.stack_arrays(arrays, align='stop'), expected_stop)
 
   arrays2 = [np.array([[1, 2, 3]]), np.array([[4], [5], [6]]), np.array([[7, 8], [9, 7]])]
   expected = [
@@ -110,36 +115,39 @@ def test_stack_arrays() -> None:
       [[0, 0, 4], [0, 0, 5], [0, 0, 6]],
       [[0, 0, 0], [0, 7, 8], [0, 9, 7]],
   ]
-  assert np.all(hh.stack_arrays(arrays2, align='stop') == expected)
+  np.testing.assert_array_equal(hh.stack_arrays(arrays2, align='stop'), expected)
   expected = [
       [[1, 2, 3], [0, 0, 0], [0, 0, 0]],
       [[0, 0, 4], [0, 0, 5], [0, 0, 6]],
       [[0, 7, 8], [0, 9, 7], [0, 0, 0]],
   ]
-  assert np.all(hh.stack_arrays(arrays2, align=['start', 'stop']) == expected)
+  np.testing.assert_array_equal(hh.stack_arrays(arrays2, align=['start', 'stop']), expected)
   expected = [
       [[1, 2, 3], [0, 0, 0], [0, 0, 0]],
       [[0, 4, 0], [0, 5, 0], [0, 6, 0]],
       [[0, 0, 0], [0, 7, 8], [0, 9, 7]],
   ]
-  assert np.all(hh.stack_arrays(arrays2, align=[['start'], ['center'], ['stop']]) == expected)
+  result = hh.stack_arrays(arrays2, align=[['start'], ['center'], ['stop']])
+  np.testing.assert_array_equal(result, expected)
 
 
 def test_from_to_xyz() -> None:
+  assert hh._to_xyz([0.5, 1, 2]) == dict(x=0.5, y=1, z=2)
   assert np.all(hh._from_xyz(hh._to_xyz([0.5, 1, 2])) == [0.5, 1, 2])
 
 
 def test_vector_slerp() -> None:
   assert np.allclose(hh._vector_slerp([0, 1], [1, 0], 1 / 3), [0.5, np.cos(np.radians(30))])
+  vector = np.array([0.7696741376445092, 0.0800898974604638, -0.6333935034131261])
+  assert np.dot(vector, vector) > 1.0  # A unit vector for which rounding exceeds 1.
+  assert np.allclose(hh._vector_slerp(vector, vector, 0.5), vector)
 
 
-# Would require adding a "test_requires=['IPython']" in setup.py.
-#
-# def test_celltimer_is_noop_outside_notebook(capfd):
-#   hh.start_timing_notebook_cells()
-#   hh.show_notebook_cell_top_times()
-#   captured = capfd.readouterr()
-#   assert captured.out == ''
+def test_celltimer_is_noop_outside_notebook(capfd: Any) -> None:
+  hh.start_timing_notebook_cells()
+  hh.show_notebook_cell_top_times()
+  captured = capfd.readouterr()
+  assert captured.out == ''
 
 
 def test_function_in_temporary_module() -> None:
@@ -160,6 +168,11 @@ def test_function_in_temporary_module() -> None:
     assert function.__module__.startswith('temp_module_')
     assert function(5, 4) == 108
 
+  num_paths = len(sys.path)
+  with hh.function_in_temporary_module(function1):
+    pass
+  assert len(sys.path) == num_paths  # The temporary directory is removed from sys.path.
+
 
 def test_assemble_array() -> None:
   arrays = [
@@ -171,4 +184,67 @@ def test_assemble_array() -> None:
   ]
   result = hh.assemble_arrays(arrays, shape=(2, 3), from_end=True)
   expected = np.array([[0, 1, 2, 3, 0, 4, 0], [0, 0, 0, 0, 0, 5, 0], [6, 7, 8, 0, 9, 1, 2]])
-  assert np.all(result == expected), result
+  np.testing.assert_array_equal(result, expected)
+
+
+def test_rgb_hsv_hsl_known_values() -> None:
+  rgb = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0.5, 0.25, 0.25]])
+  hsv = np.array([[0, 1, 1], [120, 1, 1], [240, 1, 1], [60, 1, 1], [0, 0.5, 0.5]])
+  hsl = np.array([[0, 1, 0.5], [120, 1, 0.5], [240, 1, 0.5], [60, 1, 0.5], [0, 1 / 3, 0.375]])
+  np.testing.assert_allclose(hh.hsv_from_rgb(rgb), hsv)
+  np.testing.assert_allclose(hh.hsl_from_rgb(rgb), hsl)
+  np.testing.assert_allclose(hh.rgb_from_hsv(hsv), rgb)
+  np.testing.assert_allclose(hh.rgb_from_hsl(hsl), rgb)
+
+
+def test_rgb_hsv_hsl_edge_cases() -> None:
+  np.testing.assert_allclose(hh.hsv_from_rgb([1.0, 0.5, 0.0]), [30, 1, 1])  # A single color.
+  np.testing.assert_allclose(hh.hsl_from_rgb([1.0, 0.5, 0.0]), [30, 1, 0.5])
+  np.testing.assert_allclose(hh.rgb_from_hsv([30, 1, 1]), [1, 0.5, 0])  # Integer input.
+  with warnings.catch_warnings():
+    warnings.simplefilter('error')  # No division warnings for black or white.
+    np.testing.assert_allclose(hh.hsv_from_rgb([[0.0, 0.0, 0.0]]), [[0, 0, 0]])
+    np.testing.assert_allclose(hh.hsl_from_rgb([[1.0, 1.0, 1.0]]), [[0, 0, 1]])
+
+
+def test_rotate_layout_by_angle() -> None:
+  pos = {'a': (0.0, 0.0), 'b': (2.0, 0.0), 'c': (1.0, 3.0)}  # The mean point is (1, 1).
+  new_pos = hh.rotate_layout_by_angle(pos, math.tau / 4)  # Counterclockwise.
+  np.testing.assert_allclose(new_pos['c'], (-1.0, 1.0), atol=1e-12)
+
+
+def test_stats_of_large_integers() -> None:
+  stats = hh.Stats([4_000_000_000, 0])
+  np.testing.assert_allclose(stats.rms(), np.sqrt(np.mean(np.square([4e9, 0]))))
+  np.testing.assert_allclose(stats.sdv(), np.std([4e9, 0], ddof=1))
+
+
+def test_solve_modulo_congruences_without_solution() -> None:
+  with pytest.raises(ValueError, match='No solution'):
+    hh.solve_modulo_congruences([0, 1], [2, 4])
+
+
+def test_as_float_of_bool() -> None:
+  new = hh.as_float(np.array([True, False]))
+  hh.check_eq(new.dtype, np.float32)
+  np.testing.assert_array_equal(new, [1.0, 0.0])
+
+
+def test_grid_from_string_with_ragged_lines() -> None:
+  with pytest.raises(ValueError, match='different lengths'):
+    hh.grid_from_string('abc\nde\n')
+
+
+def test_grid_from_indices_with_float_foreground() -> None:
+  grid = hh.grid_from_indices([(0, 0), (1, 1)], foreground=0.5)
+  np.testing.assert_array_equal(grid, [[0.5, 0.0], [0.0, 0.5]])
+
+
+def test_image_from_plt_is_writeable() -> None:
+  import matplotlib.pyplot as plt
+
+  fig = plt.figure(figsize=(2, 1))
+  image = hh.image_from_plt(fig)
+  plt.close(fig)
+  assert image.flags.writeable
+  image[0, 0] = 0  # E.g., as by overlay_text().

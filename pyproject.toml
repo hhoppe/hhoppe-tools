@@ -3,10 +3,10 @@ name = "hhoppe-tools"
 description = "Library of Python tools by Hugues Hoppe"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Hugues Hoppe", email="hhoppe@gmail.com"}]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -16,22 +16,26 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
-keywords = []
+keywords = [
+    "utilities", "numpy", "jupyter", "notebook", "timing", "profiling", "grid", "plotting",
+]
 
-# pip dependencies of the project
+# The pip dependencies of the project.
 # The lower bound is the oldest version with wheels for Python 3.10; CI tests it.
 dependencies = [
     "numpy>=1.21.2",
 ]
 
-# This is set automatically by flit using `*.__version__`
+# Flit sets the version from `hhoppe_tools.__version__`.
 dynamic = ["version"]
 
 [project.urls]
 homepage = "https://github.com/hhoppe/hhoppe-tools"
 repository = "https://github.com/hhoppe/hhoppe-tools"
-# Other: `documentation`, `changelog`
+documentation = "https://hhoppe.github.io/hhoppe-tools/"
+changelog = "https://github.com/hhoppe/hhoppe-tools/releases"
 
 # Development requirements (PEP 735), which are not part of the published package metadata.
 # CI installs them with `pip install . --group test` or `pip install . --group lint`.
@@ -47,7 +51,7 @@ lint = [
 ]
 
 [build-system]
-requires = ["flit_core >=3.5,<4"]
+requires = ["flit_core >=3.12,<4"]  # For PEP 639 `license`.
 build-backend = "flit_core.buildapi"
 
 [tool.autopep8]
@@ -86,7 +90,7 @@ recursive = true
 ignore-paths = [".*ipynb_checkpoints"]
 
 [tool.pylint.basic]
-good-names-rgxs = "^[a-z][a-z0-9]?|[A-Z]([A-Z_]*[A-Z])?$"
+good-names-rgxs = "^([a-z][a-z0-9]?|[A-Z]([A-Z_]*[A-Z])?)$"
 
 [tool.pylint.format]
 indent-string = "  "
@@ -101,9 +105,11 @@ redundant-condition = false
 untyped-import = false
 
 [tool.pytest.ini_options]
-addopts = "--ignore-glob '*.#*' --doctest-modules"
+addopts = ["--doctest-modules", "--ignore-glob=*.#*"]  # (Emacs lock files end in ".py".)
+testpaths = ["hhoppe_tools", "test_hhoppe_tools.py"]
 
 [tool.ruff]
+line-length = 100
 # indent-width = 2  # Too primitive; see below.
 
 [tool.ruff.lint]

@@ -14,7 +14,7 @@ env NUMBA_CACHE_DIR=$(mktemp -d) python3 -m doctest -v __init__.py | perl -ne 'p
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.8'
+__version__ = '1.6.9'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -47,7 +47,6 @@ import types
 import typing
 import unittest.mock  # pylint: disable=unused-import # noqa
 import uuid
-import warnings
 from collections.abc import Callable, Generator, Iterable, Iterator, Mapping, Sequence
 from typing import Any, Generic, Literal, TypeAlias, TypeVar
 
@@ -189,7 +188,7 @@ def apply_patches_so_output_uses_unix_newline() -> None:
     return original_func(self, mode, *args, **kwargs)
 
   @apply_patch(pathlib.Path, 'write_text')
-  def patched_write_text(original_func, self, data: bytes, *args, **kwargs) -> Any:
+  def patched_write_text(original_func, self, data: str, *args, **kwargs) -> Any:
     if 'newline' not in kwargs:
       kwargs['newline'] = '\n'
     return original_func(self, data, *args, **kwargs)
@@ -223,7 +222,7 @@ def check_eq(a: Any, b: Any, /) -> None:
     b: Second expression.
 
   Raises:
-    RuntimeError: If `a != b` (or `np.any(a != b) if np.ndarray`).
+    AssertionError: If `a != b` (or `np.any(a != b) if np.ndarray`).
 
   >>> check_eq('a' + 'b', 'ab')
 
@@ -237,7 +236,7 @@ def check_eq(a: Any, b: Any, /) -> None:
     raise AssertionError(f'{a!r} == {b!r}')
 
 
-def print_err(*args: str, **kwargs: Any) -> None:
+def print_err(*args: Any, **kwargs: Any) -> None:
   r"""Prints arguments to `stderr` immediately.
 
   >>> with unittest.mock.patch('sys.stderr', new_callable=io.StringIO) as m:
@@ -313,13 +312,13 @@ def _dump_vars(*args: Any) -> str:
     begin += len(this_function_name)
     end = begin + matching_parenthesis(text[begin:])
     parameter_string = text[begin + 1 : end].strip()
-    if re.fullmatch(r'\*[\w]+', parameter_string):
+    if re.fullmatch(r'\*\w+', parameter_string):
       this_function_name = function_name
       # Because the call is made using a *args, we continue to
       # the earlier caller in the stack trace.
     else:
       if len(args) == 1:
-        expressions = [parameter_string.strip()]
+        expressions = [parameter_string]
       else:
         node = ast.parse(parameter_string)
         # print(ast.dump(node, indent=2))
@@ -355,7 +354,7 @@ def show(*args: Any) -> None:
   ...   check_eq(m.getvalue(), '4 * 3 = 12\n')
 
   >>> with unittest.mock.patch('sys.stdout', new_callable=io.StringIO) as m:
-  ...   a ='<string>'
+  ...   a = '<string>'
   ...   show(a, 'literal_string', "s", a * 2, 34 // 3)
   ...   s = m.getvalue()
   >>> s
@@ -423,7 +422,7 @@ def clear_functools_caches(variables: Mapping[str, Any], /, *, verbose: bool = F
 
 
 def mirror_loop(sequence: Sequence[_T], duplicate_ends: bool = False) -> Iterator[_T]:
-  """Yields elements from 'sequence' alternating forward and backward.
+  """Yields elements from `sequence` alternating forward and backward.
 
   Examples:
     >>> tuple(itertools.islice(mirror_loop((1, 2, 3, 4)), 10))
@@ -462,11 +461,12 @@ def divide_slice(sl: slice, n: int) -> Iterator[slice]:
   """Divide a slice `sl` into `n` subslices.
 
   Args:
-    slice: The slice to divide.
+    sl: The slice to divide.
     n: The number of subslices.
 
   Yields:
-    A subslice of the slice.  If the size of `sl` is less than `n`, the last subslices are empty.
+    A subslice of the slice.  The subslices have size `ceil(size / n)`, except for the last ones,
+    which may be smaller or empty.
 
   >>> list(divide_slice(slice(0, 10), 2))
   [slice(0, 5, None), slice(5, 10, None)]
@@ -504,11 +504,12 @@ def divide_slice(sl: slice, n: int) -> Iterator[slice]:
 def _get_ipython() -> Any:
   import IPython
 
-  return IPython.get_ipython()  # type: ignore[attr-defined, no-untyped-call, unused-ignore]  # Needed on Windows.
+  # The ignore is needed on Windows.
+  return IPython.get_ipython()  # type: ignore[attr-defined, no-untyped-call, unused-ignore]
 
 
 def in_notebook() -> bool:
-  """Return True if running inside an Jupyter/IPython notebook.
+  """Return True if running inside a Jupyter/IPython notebook.
 
   >>> in_notebook()
   False
@@ -594,7 +595,7 @@ class _CellTimer:
     self.start_time = time.perf_counter()
 
   def post_run(self, unused_result: Any) -> None:
-    """Start the timer for the notebook cell execution."""
+    """Record the elapsed time of the notebook cell execution."""
     elapsed_time = time.perf_counter() - self.start_time
     input_index = _get_ipython().execution_count - 1
     self.elapsed_times[input_index] = elapsed_time
@@ -645,9 +646,10 @@ class StopExecution(Exception):
   def __init__(self, message: str = '<StopExecution>') -> None:
     self.message = message
 
-  def _render_traceback_(self) -> None:
+  def _render_traceback_(self) -> list[str]:
     if self.message:
       print(self.message)
+    return []
 
 
 def pdoc_help(
@@ -872,8 +874,8 @@ def prun(
       tottime_str, cumtime_str, name = re_groups(pattern, line)
       tottime, cumtime = float(tottime_str), float(cumtime_str)
       beautified_name = beautify_function_name(name)
-      overall_time += 1e-6
-      significant_time = tottime / overall_time > 0.05 or 0.05 < cumtime / overall_time < 0.95
+      denom = overall_time + 1e-6  # Avoid division by zero.
+      significant_time = tottime / denom > 0.05 or 0.05 < cumtime / denom < 0.95
       if top is not None or significant_time:
         if mode == 'tottime':
           output.append(f'     {tottime:8.3f} {cumtime:8.3f} {beautified_name}')
@@ -1013,7 +1015,7 @@ def selective_lru_cache(
   named in `ignore_kwargs` not have defaults in the decorated function.
   Inspired by https://stackoverflow.com/a/30738279
 
-  >>> @selective_lru_cache(ignore_kwargs=('kw1'))
+  >>> @selective_lru_cache(ignore_kwargs=('kw1',))
   ... def func(arg1: int, *, kw1: bool):
   ...   print(arg1, kw1)
   ...   return arg1
@@ -1119,10 +1121,10 @@ def function_in_temporary_module(
   Yields:
     function: The new callable in the temporary module.
   """
-  sources = [header] + [inspect.getsource(func) for func in [function, *list(funcs)]]
+  sources = [header] + [inspect.getsource(func) for func in [function, *funcs]]
   source = '\n\n\n'.join(textwrap.dedent(text) for text in sources)
 
-  old_sys_path = sys.path
+  old_sys_path = sys.path.copy()
   try:
     salt = uuid.uuid4().hex[-8:]
     module_name = f'temp_module_{salt}'
@@ -1160,7 +1162,7 @@ def timing(
 
   >>> with timing('List comprehension example'):
   ...   _ = [i for i in range(10_000)]  # doctest:+ELLIPSIS
-  List comprehension example: 0.00...
+  List comprehension example: 0.0...
   """
   if enabled:
     gc_was_enabled = gc.isenabled()
@@ -1222,8 +1224,7 @@ def show_biggest_vars(variables: Mapping[str, Any], /, n: int = 10) -> None:
   s                        str                  ...
   i                        int                  ...
   """
-  var = variables
-  infos = [(name, sys.getsizeof(value), typename(value)) for name, value in var.items()]
+  infos = [(name, sys.getsizeof(value), typename(value)) for name, value in variables.items()]
   infos.sort(key=lambda t: t[1], reverse=True)
   for name, size, vartype in infos[:n]:
     print(f'{name:24} {vartype:20} {size:_}')
@@ -1269,7 +1270,7 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
     A tuple of strings corresponding to the regex groups found in the pattern match within `string`.
 
   Raises:
-    ValueError if `pattern` is not found in `string`.
+    ValueError: If `pattern` is not found in `string`.
 
   >>> re_groups(r'object (\d+).*loc (\w+)', 'The object 13 at loc ABC.')
   ('13', 'ABC')
@@ -1290,7 +1291,8 @@ def re_groups(pattern: str, string: str, /) -> tuple[str, ...]:
 def extended_gcd(a: int, b: int) -> tuple[int, int, int]:
   """Find the greatest common divisor using the extended Euclidean algorithm.
 
-  Returns: (gcd(a, b), x, y) with the property that a * x + b * y = gcd(a, b).
+  Returns: (gcd(a, b), x, y) with the property that a * x + b * y = gcd(a, b).  (For negative
+  arguments, the returned gcd may be negative.)
 
   >>> extended_gcd(29, 71)
   (1, -22, 9)
@@ -1328,7 +1330,6 @@ def solve_modulo_congruences(remainders: Sequence[int], moduli: Sequence[int]) -
 
   for r2, m2 in zip(remainders[1:], moduli[1:], strict=True):
     g, x, _ = extended_gcd(m, m2)
-    assert r % g == r2 % g
     if (r2 - r) % g != 0:
       raise ValueError('No solution exists.')
 
@@ -1377,7 +1378,7 @@ def as_float(a: _ArrayLike, /) -> _NDArray:
   a = np.asarray(a)
   if issubclass(a.dtype.type, np.floating):
     return a
-  dtype = np.float64 if np.iinfo(a.dtype).bits >= 32 else np.float32
+  dtype = np.float64 if a.dtype.itemsize >= 4 else np.float32
   return a.astype(dtype)
 
 
@@ -1474,7 +1475,7 @@ def van_der_corput(n: int, base: int = 2) -> float:
     n: Index in the sequence.  Zero is at n=0, and 0.5 is at n=1, so starting at n=1 is useful.
     base: Base for the sequence (typically 2 for binary).
 
-  Return:
+  Returns:
     A value in the range [0, 1) with low-discrepancy properties.
 
   >>> [van_der_corput(i) for i in range(1, 6)]
@@ -1490,7 +1491,7 @@ def van_der_corput(n: int, base: int = 2) -> float:
 
 
 def van_der_corput_sequence(n: int, base: int = 2) -> _NDArray:
-  """Generate a vectorized Van der Corput sequence using efficient bitwise operations.
+  """Generate a vectorized Van der Corput sequence using vectorized digit extraction.
 
   Args:
     n: Number of elements to generate in the sequence.
@@ -1506,7 +1507,7 @@ def van_der_corput_sequence(n: int, base: int = 2) -> _NDArray:
   indices = np.arange(1, n + 1)
   vdc = np.zeros(n, dtype=np.float64)
   current_denom = base
-  # Process each bit position
+  # Process each digit position (in the given base).
   while np.any(indices):
     remainder = indices % base
     vdc += remainder / current_denom
@@ -1528,7 +1529,7 @@ def diagnostic(a: _ArrayLike, /) -> str:
   >>> print(textwrap.fill(diagnostic(
   ...     [[math.nan, math.inf, -math.inf, -math.inf], [0, -1, 2, -0]])))
   shape=(2, 4) dtype=float64 size=8 nan=1 posinf=1 neginf=2 finite=4,
-  min=-1.0, max=2.0, avg=0.25, sdv=1.25831) zero=2
+  min=-1.0, max=2.0, avg=0.25, sdv=1.25831 zero=2
   """
   a = np.asarray(a)
   dtype = a.dtype
@@ -1540,16 +1541,15 @@ def diagnostic(a: _ArrayLike, /) -> str:
       f' nan={np.isnan(a).sum()}'
       f' posinf={np.isposinf(a).sum()}'
       f' neginf={np.isneginf(a).sum()}'
-      f' finite{repr(Stats(finite))[10:]}'
+      f' finite{repr(Stats(finite))[10:-1]}'
       f' zero={(finite == 0).sum()}'
   )
 
 
 # ** Statistics
 
-# Note that using dataclasses.dataclass(frozen=True) incurs a performance
-# penalty # because the initialization must use object.__setattr__() to bypass
-# the # disabled __set_attr__() member function.
+# Note that using dataclasses.dataclass(frozen=True) incurs a performance penalty because the
+# initialization must use object.__setattr__() to bypass the disabled __setattr__() member function.
 # Instead, I use an ordinary class with protected class fields.
 
 
@@ -1639,7 +1639,7 @@ class Stats:
       a = a.astype(precision)
       self._size = a.size
       self._sum = a.sum()
-      self._sum2 = np.square(a).sum()
+      self._sum2 = np.square(a, dtype=np.float64).sum()  # Avoid int64 overflow.
       self._min = a.min() if a.size > 0 else math.inf
       self._max = a.max() if a.size > 0 else -math.inf
     else:
@@ -1679,7 +1679,7 @@ class Stats:
 
     >>> assert Stats([1, 1, 4]).ssd() == 6.0
     """
-    return math.nan if self._size == 0 else max(self._sum2 - self._sum**2 / self._size, 0)
+    return math.nan if self._size == 0 else max(self._sum2 - float(self._sum) ** 2 / self._size, 0)
 
   def var(self) -> float:
     """Return the unbiased estimate of variance, as in `np.var(a, ddof=1)`.
@@ -1714,8 +1714,8 @@ class Stats:
     """Return a summary of the statistics `(size, min, max, avg, sdv)`."""
     fmt = format_spec if format_spec else '#12.6'
     fmt_int = fmt[: fmt.find('.')] if fmt.find('.') >= 0 else ''
-    fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
-    fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
+    fmt_min = fmt if isinstance(self._min, (float, np.floating)) else fmt_int
+    fmt_max = fmt if isinstance(self._max, (float, np.floating)) else fmt_int
     return (
         f'({self._size:11_})'
         f' {self._min:{fmt_min}} :'
@@ -1730,8 +1730,8 @@ class Stats:
   def __repr__(self) -> str:
     fmt = '.6'
     fmt_int = ''
-    fmt_min = fmt if isinstance(self._min, np.floating) else fmt_int
-    fmt_max = fmt if isinstance(self._max, np.floating) else fmt_int
+    fmt_min = fmt if isinstance(self._min, (float, np.floating)) else fmt_int
+    fmt_max = fmt if isinstance(self._max, (float, np.floating)) else fmt_int
     return (
         f'Stats(size={self._size}, '
         f'min={self._min:{fmt_min}}, '
@@ -1962,7 +1962,7 @@ def bounding_crop(array: _ArrayLike, value: _ArrayLike, /, *, margin: _ArrayLike
   >>> bounding_crop([0, 0, 1, 0], 0, margin=1)
   array([0, 1, 0])
 
-  >>> bounding_crop([0, 0, 0, 0], 0).tolist()  # array([], dtype=int64) in Unix, dtype=int32 in Win.
+  >>> bounding_crop([0, 0, 0, 0], 0).tolist()  # dtype=int32 on Windows with numpy<2.
   []
 
   >>> bounding_crop([0, 0, 0, 0], 1)
@@ -2004,8 +2004,8 @@ def grid_from_string(
 
   Args:
     string: Nonempty lines correspond to the rows of the grid, with one `ch` per grid element.
-    int_from_ch: Mapping from the `ch` in string to integers in the resulting grid; if None,
-      the grid contains chr elements (`dtype='<U1'`).
+    int_from_ch: Mapping from the `ch` in string to integers in the resulting grid (with 0 for a
+      `ch` absent from the mapping); if None, the grid contains chr elements (`dtype='<U1'`).
     dtype: Integer element type for the result of `int_from_ch`.
 
   >>> string = '..B\nB.A\n'
@@ -2027,6 +2027,8 @@ def grid_from_string(
   # grid = np.array(list(map(list, string.splitlines())))  # Slow.
   lines = string.splitlines()
   height, width = len(lines), len(lines[0])
+  if any(len(line) != width for line in lines):
+    raise ValueError('The lines of the string have different lengths.')
   grid: _NDArray = np.empty((height, width), 'U1')
   dtype_for_row = f'U{width}'
   for i, line in enumerate(lines):
@@ -2061,10 +2063,8 @@ def string_from_grid(grid: _ArrayLike, /, ch_from_int: Mapping[int, str] | None 
   lines = []
   for y in range(grid.shape[0]):
     if ch_from_int is None:
-      if grid.dtype.kind == 'S':  # or dtype.type == np.bytes_
-        line = b''.join(grid[y]).decode('ascii')
-      else:
-        line = ''.join(grid[y])
+      is_bytes = grid.dtype.kind == 'S'  # Or dtype.type == np.bytes_.
+      line = b''.join(grid[y]).decode('ascii') if is_bytes else ''.join(grid[y])
     else:
       line = ''.join(ch_from_int[elem] for elem in grid[y])
     lines.append(line)
@@ -2175,7 +2175,7 @@ def grid_from_indices(
   elems += [background, foreground]
   shape2 = (*shape, *np.broadcast(*elems).shape)
   del shape
-  dtype = np.array(elems[0], dtype).dtype
+  dtype = np.result_type(*(np.asarray(elem, dtype) for elem in elems[:2]))
   grid = np.full(shape2, background, dtype)
   indices += offset
   grid[tuple(indices.T)] = list(mapping.values()) if mapping is not None else foreground
@@ -2196,7 +2196,7 @@ def rgb_from_hsx(hsx: _ArrayLike, *, is_hsl: bool) -> _NDArray:
     c = v_or_l * s  # HSV chroma formula.
     m = v_or_l - c  # HSV match formula.
   x = c * (1 - np.abs((h / 60) % 2 - 1))  # Secondary component.
-  rgb = np.empty_like(hsx)
+  rgb = np.empty(hsx.shape, np.result_type(hsx, 0.0))
 
   mask1 = h < 60  # Six hue sectors.
   mask2 = (60 <= h) & (h < 120)
@@ -2251,16 +2251,18 @@ def hsx_from_rgb(rgb: _ArrayLike, *, use_hsl: bool) -> _NDArray:
   h[mask_r] = (g[mask_r] - b[mask_r]) / c[mask_r] % 6
   h[mask_g] = (b[mask_g] - r[mask_g]) / c[mask_g] + 2
   h[mask_b] = (r[mask_b] - g[mask_b]) / c[mask_b] + 4
-  h[:] = np.mod(h * 60, 360)
+  h[...] = np.mod(h * 60, 360)
 
   if use_hsl:
     l = v_or_l
-    l[:] = (max_val + min_val) / 2
-    s[:] = np.where(c == 0, 0, c / (1 - np.abs(2 * l - 1)))
+    l[...] = (max_val + min_val) / 2
+    with np.errstate(invalid='ignore', divide='ignore'):  # Masked by np.where().
+      s[...] = np.where(c == 0, 0, c / (1 - np.abs(2 * l - 1)))
   else:
     v = v_or_l
-    v[:] = max_val
-    s[:] = np.where(c == 0, 0, c / v)
+    v[...] = max_val
+    with np.errstate(invalid='ignore', divide='ignore'):  # Masked by np.where().
+      s[...] = np.where(c == 0, 0, c / v)
 
   return hsx
 
@@ -2275,7 +2277,7 @@ def hsl_from_rgb(rgb: _ArrayLike) -> _NDArray:
 
 
 def hsv_from_rgb(rgb: _ArrayLike) -> _NDArray:
-  """Convert from RGB ([0, 1], [0, 1], [0, 1]) to HSL ([0, 360], [0, 1], [0, 1]).
+  """Convert from RGB ([0, 1], [0, 1], [0, 1]) to HSV ([0, 360], [0, 1], [0, 1]).
 
   >>> rgb = (np.indices((10, 10, 10)).T.reshape(10, 100, 3) + 0.5) / 10
   >>> assert ((rgb_from_hsv(hsv_from_rgb(rgb)) - rgb) ** 2).sum() < 1e-20
@@ -2397,9 +2399,9 @@ def assemble_arrays(
       same trailing dimensions, i.e., identical `arrays[:].shape[len(shape):]`.  The leading
       dimensions `arrays[:].shape[:len(shape)]` may be different and these are packed together as a
       grid to form `output.shape[:len(shape)]`.
-    shape: Dimensions of the grid used to unravel the `arrays` before packing. The dimensions must
-      be positive, with `prod(shape) >= len(arrays)`.  Each dimension must either be positive or
-      the special value -1 to indicate that it should be computed for tightest fit.
+    shape: Dimensions of the grid used to unravel the `arrays` before packing.  Each dimension
+      must either be positive or the special value -1 to indicate that it should be computed for
+      tightest fit; the result must satisfy `prod(shape) >= len(arrays)`.
     background: Broadcastable value used for the unassigned elements of the output array.
     align: Relative position (`'center'`, `'start'`, or `'stop'`) for each input array and for
       each axis within its output grid cell.  The value must be broadcastable onto the shape
@@ -2634,7 +2636,7 @@ def rasterized_text(
     margin: _ArrayLike = ((4, 1), (1, 1)),  # [[t, b], [l, r]].
     min_width: int = 0,
 ) -> _NDArray:
-  """Returns a uint8 RGB image with the text rasterized into it.
+  """Return a uint8 RGB image with the text rasterized into it.
 
   This function tackles the challenge of letting both the text image size and the text position
   within it be independent of the text content, to avoid jittering in video animations.
@@ -2645,7 +2647,7 @@ def rasterized_text(
   Args:
     text: String to rasterize.  Embedded newlines indicate multiline text.
     background: RGB background color of created image.  Scalar indicates gray value.
-    foreground: RGB color rasterized text.  Scalar indicates gray value.
+    foreground: RGB color of rasterized text.  Scalar indicates gray value.
     fontname: Name of font compatible with `PIL.ImageFont.truetype()`, such as `'cmtt10'`
       or `'cmr10'`.
     fontsize: Size of rasterized font, in pixels.
@@ -2653,7 +2655,7 @@ def rasterized_text(
       based on `fontsize`.
     textalign: Inter-line horizontal alignment for multiline text: 'left', 'center', or 'right'.
     margin: Number of additional background pixels padded around text.  Must be broadcastable
-      onto `[[top, bottom], [left, right]`; see `pad_array()`.
+      onto `[[top, bottom], [left, right]]`; see `pad_array()`.
     min_width: Minimum width of returned text image.  This is particularly useful for proportional
       fonts.  Padding is performed using `background` color.
 
@@ -2710,11 +2712,11 @@ def overlay_text(
     align: str = 'tl',  # '[tmb][lcr]'.
     **kwargs: Any,
 ) -> None:
-  """Modifies `image` in-place by overlaying of a box of rasterized `text` at a specified location.
+  """Modify `image` in place by overlaying a box of rasterized `text` at a specified location.
 
   Args:
     image: uint8 RGB image whose contents are overlaid with a rasterized text box.
-    yx: Pixel coordinates `y, x` for placement of the text box, according `align`.
+    yx: Pixel coordinates `y, x` for placement of the text box, according to `align`.
     text: String to rasterize.  Embedded newlines indicate multiline text.
     align: Two-character alignment code [tmb][lcr].  The first character specifies vertical
       alignment about `yx[0]` as `'t'` for top, `'m'` for middle, or `'b'` for bottom.  The second
@@ -2727,17 +2729,11 @@ def overlay_text(
   >>> image[6, :7, 0]
   array([250, 240, 240,  69, 194, 240, 240], dtype=uint8)
   """
-  import PIL
-
   assert image.ndim == 3, image.shape
   assert image.dtype == np.uint8, image.dtype
   yx = np.asarray(yx)
   assert yx.shape == (2,), yx.shape
   assert len(align) == 2 and align[0] in 'tmb' and align[1] in 'lcr', align
-  version = (*(int(s) for s in re.findall(r'\d+', PIL.__version__)), 0, 0)
-  if version[:2] < (8, 0):
-    warnings.warn('Pillow<8.0 lacks ImageDraw.Draw.multiline_textbbox; skipping overlay_text().')
-    return
   text_image = rasterized_text(text, **kwargs)
   text_shape, image_shape = text_image.shape[:2], image.shape[:2]
   mid = np.array(text_shape) // 2
@@ -2844,7 +2840,7 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
         os.environ['PATH'] += f';{path}'
     args = '-Gstart=1'  # Deterministically seed the graphviz random number generator.
     return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
-  if 0:  # pydot is deprecated; https://github.com/networkx/networkx/issues/5723
+  if 0:  # Alternative using package pydot (no longer deprecated in networkx>=3.3).
     with contextlib.suppress(ImportError):
       return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
   print('Cannot reach graphviz; resorting to simpler layout.')
@@ -2854,7 +2850,7 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
 def rotate_layout_by_angle(
     pos: dict[_T, tuple[float, float]], angle: float = 0.0
 ) -> dict[_T, tuple[float, float]]:
-  """Rotate `pos` dict of `x, y` coords (right, up) clw by `angle`."""
+  """Rotate `pos` dict of `x, y` coords (right, up) counterclockwise by `angle` (radians)."""
   points = np.asarray(list(pos.values()))
   mean_point = points.mean(0)
   rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
@@ -2898,7 +2894,7 @@ def _composite_over_background(image: _NDArray, background: _ArrayLike) -> _NDAr
   assert image.dtype == np.uint8, image.dtype
   background_image = np.broadcast_to(np.asarray(background), (*image.shape[:2], 3))
   if np.all(image[..., 3] == 255):
-    return image[..., :3]
+    return image[..., :3].copy()  # (The input may be read-only.)
   alpha = image[..., 3:4] / 255
   premultiplied_alpha = False  # As observed.
   if premultiplied_alpha:
@@ -2994,7 +2990,7 @@ def mesh3d_from_height(
 
   grid = np.asarray(grid)
   assert grid.ndim == 2, grid.shape
-  assert not (color is not None and facecolor is None), (color, facecolor)
+  assert (color is None) == (facecolor is None), (color, facecolor)  # Both or neither.
   yy, xx = np.arange(grid.shape[0] + 1).repeat(2), np.arange(grid.shape[1] + 1).repeat(2)
   y, x = yy.repeat(len(xx)), np.tile(xx, len(yy))
   z = np.pad(grid.repeat(2, axis=0).repeat(2, axis=1), 1, constant_values=0.0).ravel()
@@ -3008,6 +3004,7 @@ def mesh3d_from_height(
   )
 
   if facecolor is not None:
+    facecolor = np.asarray(facecolor)
     facecolor2 = np.full(((grid.shape[0] * 2 + 1) * (grid.shape[1] * 2 + 1) * 2, 3), color)
     for y0, x0 in np.ndindex(facecolor.shape[:2]):
       index = ((y0 * 2 + 1) * (grid.shape[1] * 2 + 1) + x0 * 2 + 1) * 2
@@ -3040,7 +3037,7 @@ def mesh3d_from_cubes(
 def _vector_slerp(a: _ArrayLike, b: _ArrayLike, t: float) -> _NDArray:
   """Spherically interpolate two unit vectors, as in https://en.wikipedia.org/wiki/Slerp ."""
   a, b = np.asarray(a), np.asarray(b)
-  angle = max(math.acos(np.dot(a, b)), 1e-10)
+  angle = max(math.acos(np.clip(np.dot(a, b), -1.0, 1.0)), 1e-10)
   return (math.sin((1.0 - t) * angle) * a + math.sin(t * angle) * b) / math.sin(angle)
 
 
@@ -3057,7 +3054,7 @@ def wobble_video(
   Args:
     fig: A `plotly` figure containing a 3D scene.
     amplitude: Magnitude of the angle displacement, in degrees, by which the eye is rotated.
-    num_frames: Length of the returned array of frames.
+    num_frames: Number of frames in the returned list.
     quantization: Granularity of the orbit angles, to allow frame reuse (e.g. for GIF).
   """
   import plotly
@@ -3165,7 +3162,7 @@ def discrete_binary_search(
 def boyer_subsequence_find(seq: _NDArray, subseq: _NDArray, /) -> int:
   """Return the index of the first location of `subseq` in `seq`, or -1 if absent.
 
-  See https://en.wikipedia.org/wiki/Boyer-Moore-Horspool_algorithm.
+  See https://en.wikipedia.org/wiki/Boyer-Moore-Horspool_algorithm .
 
   Args:
     seq: Sequence to search; it must be an array of non-negative integers.
@@ -3211,7 +3208,7 @@ def is_executable(path: _Path, /) -> bool:
   ...   _ = path.write_text('test', encoding='utf-8')
   ...   check_eq(is_executable(path), False)
   ...   if sys.platform not in ['cygwin', 'win32']:
-  ...     # Copy R bits to X bits:
+  ...     # Copy the R bits to the X bits.
   ...     path.chmod(path.stat().st_mode | ((path.stat().st_mode & 0o444) >> 2))
   ...     check_eq(is_executable(path), True)
   """
@@ -3253,9 +3250,10 @@ def get_env_int(name: str, /, default: int = 0) -> int:
   >>> get_env_int('ABSENT_VAR', 2)
   2
 
-  >>> os.environ['EMPTY_VAR'] = ''
+  >>> os.environ['EMPTY_VAR'] = ''  # A defined but empty variable yields 1.
   >>> get_env_int('EMPTY_VAR', 2)
   1
+  >>> del os.environ['EMPTY_VAR']
 
   >>> os.environ['DEFINED_VAR'] = '3'
   >>> get_env_int('DEFINED_VAR', 2)
@@ -3306,7 +3304,7 @@ def run(args: str | Sequence[str], /) -> None:
 
 
 def patch_numba_cuda_for_python314() -> None:
-  """Workarounds for numba-cuda's 3.14 gaps; see numba issue #10319."""
+  """Apply workarounds for numba-cuda's 3.14 gaps; see numba issue #10319."""
   if sys.version_info < (3, 14):
     return
   # pylint: disable=import-error, no-name-in-module, protected-access, no-member
