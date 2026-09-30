@@ -786,7 +786,7 @@ def get_time(func: Callable[[], Any], /, **kwargs: Any) -> float:
   """Return the minimum execution time when repeatedly calling `func`.
 
   >>> elapsed = get_time(lambda: time.sleep(0.2), max_repeat=1)
-  >>> assert 0.15 < elapsed < 0.25, elapsed
+  >>> assert 0.15 < elapsed < 0.5, elapsed  # Sleep can overshoot, e.g., on busy macOS runners.
   """
   return get_time_and_result(func, **kwargs)[0]
 
