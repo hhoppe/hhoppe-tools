@@ -14,7 +14,7 @@ env NUMBA_CACHE_DIR=$(mktemp -d) python3 -m doctest -v __init__.py | perl -ne 'p
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.6'
+__version__ = '1.6.7'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast

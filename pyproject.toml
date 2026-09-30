@@ -14,8 +14,9 @@ classifiers = [
 keywords = []
 
 # pip dependencies of the project
+# The lower bound is the oldest version with wheels for Python 3.10; CI tests it.
 dependencies = [
-    "numpy",
+    "numpy>=1.21.2",
 ]
 
 # This is set automatically by flit using `*.__version__`
