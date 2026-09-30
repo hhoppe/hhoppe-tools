@@ -46,8 +46,9 @@ backends = ["numba"]
 lint = [
     "mypy", "pyink", "pylint", "pyrefly", "ruff",
     # Optional imports, so that the checkers see the same modules as locally.
+    {include-group = "test"},
     {include-group = "backends"},
-    "IPython", "matplotlib", "mediapy", "networkx", "pdoc", "Pillow", "plotly",
+    "mediapy", "networkx", "plotly",
 ]
 
 [build-system]

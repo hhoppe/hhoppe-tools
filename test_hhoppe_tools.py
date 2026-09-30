@@ -138,8 +138,8 @@ def test_from_to_xyz() -> None:
 
 def test_vector_slerp() -> None:
   assert np.allclose(hh._vector_slerp([0, 1], [1, 0], 1 / 3), [0.5, np.cos(np.radians(30))])
-  vector = np.array([0.7696741376445092, 0.0800898974604638, -0.6333935034131261])
-  assert np.dot(vector, vector) > 1.0  # A unit vector for which rounding exceeds 1.
+  vector = np.array([1.0 + 2**-52, 0.0])  # As if rounding made a unit vector slightly longer.
+  assert np.dot(vector, vector) > 1.0
   assert np.allclose(hh._vector_slerp(vector, vector, 0.5), vector)
 
 
