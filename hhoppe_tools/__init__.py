@@ -6,7 +6,8 @@ Useful commands to lint and test this module:
 ```shell
 cd ..; c:/windows/sysnative/wsl -e bash -lc 'echo autopep8; autopep8 -j8 -d .; echo pyink; pyink --diff .; echo mypy; mypy; echo pylint; pylint -j8 .; echo pytest; pytest -qq; echo All ran.'
 
-env python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
+# This imports the module as "__init__", so use a private numba cache to avoid a stale one for pytest.
+env NUMBA_CACHE_DIR=$(mktemp -d) python3 -m doctest -v __init__.py | perl -ne 'print if /had no tests/../passed all/' | tail -n +2 | head -n -1
 ```
 """
 
