@@ -31,10 +31,13 @@ repository = "https://github.com/hhoppe/hhoppe-tools"
 # CI installs them with `pip install . --group test` or `pip install . --group lint`.
 [dependency-groups]
 test = ["IPython", "matplotlib", "pdoc", "Pillow", "pytest"]
+# The optional JIT compiler, which CI tests in a separate job.
+backends = ["numba"]
 lint = [
     "mypy", "pyink", "pylint", "pyrefly", "ruff",
     # Optional imports, so that the checkers see the same modules as locally.
-    "IPython", "matplotlib", "mediapy", "networkx", "numba", "pdoc", "Pillow", "plotly",
+    {include-group = "backends"},
+    "IPython", "matplotlib", "mediapy", "networkx", "pdoc", "Pillow", "plotly",
 ]
 
 [build-system]
