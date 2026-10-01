@@ -65,7 +65,6 @@ exclude = ".ipynb_checkpoints"
 [tool.mypy]
 ignore_missing_imports = true
 strict = true
-warn_return_any = false  # buggy numpy
 files = ["."]
 exclude = "^(Other)/"
 
@@ -120,9 +119,9 @@ select = [
     "ISC", "ICN", "PIE", "RET", "TID", "TC", "I",
 ]
 extend-ignore = [
-    "E501", "E721", "E741",
+    "E402", "E501", "E721", "E741",
     "B010", "B028", "C408", "C901",
-    "TC003", "TC006", "SIM300", "ICN001", "RET504",
+    "TC003", "TC006", "SIM300", "ICN001", "RET504", "SIM905", "RUF005",
 ]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?)|unused_.*)$"
 

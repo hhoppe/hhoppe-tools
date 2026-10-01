@@ -14,7 +14,7 @@ env NUMBA_CACHE_DIR=$(mktemp -d) python3 -m doctest -v __init__.py | perl -ne 'p
 from __future__ import annotations
 
 __docformat__ = 'google'
-__version__ = '1.6.9'
+__version__ = '1.6.10'
 __version_info__ = tuple(int(num) for num in __version__.split('.'))
 
 import ast
@@ -31,6 +31,7 @@ import importlib
 import inspect
 import io
 import itertools
+import locale
 import math
 import os
 import pathlib
@@ -1418,7 +1419,8 @@ def normalize(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
   if axis is not None:
     norm = np.expand_dims(norm, axis)
   with np.errstate(invalid='ignore'):
-    return a / norm
+    result: _NDArray = a / norm
+    return result
 
 
 def rms(a: _ArrayLike, /, axis: int | None = None) -> _NDArray:
@@ -1696,7 +1698,8 @@ class Stats:
     >>> Stats([1, 1, 4]).sdv().item()
     1.7320508075688772
     """
-    return self.var() ** 0.5
+    result: float = self.var() ** 0.5
+    return result
 
   def rms(self) -> float:
     """Return the root-mean-square.
@@ -1708,7 +1711,8 @@ class Stats:
     """
     if self._size == 0:
       return 0.0
-    return (self._sum2 / self._size) ** 0.5
+    result: float = (self._sum2 / self._size) ** 0.5
+    return result
 
   def __format__(self, format_spec: str = '') -> str:
     """Return a summary of the statistics `(size, min, max, avg, sdv)`."""
@@ -1994,7 +1998,8 @@ def _np_int_from_ch(
   lookup = np.zeros(max_ch + 1, dtype or np.int_)
   for ch, value in int_from_ch.items():
     lookup[ord(ch)] = value
-  return lookup[a]
+  result: _NDArray = lookup[a]
+  return result
 
 
 def grid_from_string(
@@ -2839,7 +2844,11 @@ def graph_layout(graph: Any, *, prog: str) -> dict[Any, tuple[float, float]]:
       if path.is_dir() and str(path) not in os.environ['PATH']:
         os.environ['PATH'] += f';{path}'
     args = '-Gstart=1'  # Deterministically seed the graphviz random number generator.
-    return networkx.nx_agraph.graphviz_layout(graph, prog=prog, args=args)  # Requires pygraphviz.
+    # Requires pygraphviz.
+    pos: dict[Any, tuple[float, float]] = networkx.nx_agraph.graphviz_layout(
+        graph, prog=prog, args=args
+    )
+    return pos
   if 0:  # Alternative using package pydot (no longer deprecated in networkx>=3.3).
     with contextlib.suppress(ImportError):
       return networkx.nx_pydot.pydot_layout(graph, prog=prog)  # Requires package pydot.
@@ -3274,6 +3283,9 @@ def get_env_int(name: str, /, default: int = 0) -> int:
 def run(args: str | Sequence[str], /) -> None:
   """Execute the command `args`, printing to stdout its combined output from stdout and stderr.
 
+  The output is decoded as UTF-8 or, if that fails, using the locale encoding (e.g., cp1252 for
+  a Python<3.15 subprocess on Windows).
+
   Args:
     args: Command to execute, which can be either a string or a sequence of word strings, as in
       `subprocess.run()`.  If `args` is a string, the shell is invoked to interpret it.
@@ -3287,15 +3299,19 @@ def run(args: str | Sequence[str], /) -> None:
   ...   run(f'echo ab >{path}')
   ...   assert path.is_file() and 3 <= path.stat().st_size <= 5
   """
+  # Get bytes (not text=True), so that the decoding can fall back to another encoding.
   proc = subprocess.run(
       args,
       shell=isinstance(args, str),
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT,
       check=False,
-      text=True,
   )
-  print(proc.stdout, end='', flush=True)
+  try:
+    text = proc.stdout.decode('utf-8')  # E.g., git, WSL, most modern tools, and Python>=3.15.
+  except UnicodeDecodeError:
+    text = proc.stdout.decode(locale.getpreferredencoding(False), errors='replace')  # Python<3.15.
+  print(text.replace('\r\n', '\n'), end='', flush=True)
   if proc.returncode:
     raise RuntimeError(f"Command '{proc.args}' failed with code {proc.returncode}.")
 

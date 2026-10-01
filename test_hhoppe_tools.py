@@ -187,6 +187,12 @@ def test_assemble_array() -> None:
   np.testing.assert_array_equal(result, expected)
 
 
+def test_run_decodes_utf8_output(capfd: Any) -> None:
+  code = r"import sys; sys.stdout.buffer.write('caf\u00e9\r\n'.encode('utf-8'))"
+  hh.run([sys.executable, '-c', code])
+  assert capfd.readouterr().out == 'caf\u00e9\n'
+
+
 def test_rgb_hsv_hsl_known_values() -> None:
   rgb = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0.5, 0.25, 0.25]])
   hsv = np.array([[0, 1, 1], [120, 1, 1], [240, 1, 1], [60, 1, 1], [0, 0.5, 0.5]])
