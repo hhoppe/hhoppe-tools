@@ -87,10 +87,9 @@ jobs:
     - name: Set up Python 3.14
       uses: actions/setup-python@v7
       with:
-        # Not '3.x', which becomes 3.15 in October 2026: numba lacks wheels for it (except a pre-release), and
-        # pylint's parallel mode (-j) fails on it (dill 0.4.1 reads the removed co_lnotab;
-        # dill's main branch has the fix).
-        # Return to '3.x' once they support 3.15.
+        # Not '3.x', which becomes 3.15 in October 2026: pylint's parallel mode (-j) fails on it
+        # (dill 0.4.1 reads the removed co_lnotab; dill's main branch has the fix).
+        # Return to '3.x' once a dill release supports 3.15.
         python-version: '3.14'
 
     - name: Install the package, the lint tools, and the optional imports
@@ -118,12 +117,10 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
-    - name: Set up Python 3.14
+    - name: Set up Python 3.x
       uses: actions/setup-python@v7
       with:
-        # Not '3.x', which becomes 3.15 in October 2026: numba lacks wheels for it (except a
-        # pre-release).  Return to '3.x' once numba supports 3.15.
-        python-version: '3.14'
+        python-version: '3.x'
 
     - name: Install the package, the test requirements, and the optional backend
       run: pip install . --group test --group backends
