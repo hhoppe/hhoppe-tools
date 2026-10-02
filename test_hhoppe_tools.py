@@ -246,7 +246,7 @@ def test_grid_from_indices_with_float_foreground() -> None:
   np.testing.assert_array_equal(grid, [[0.5, 0.0], [0.0, 0.5]])
 
 
-def test_image_from_plt_is_writeable() -> None:
+def test_image_from_plt_is_writable() -> None:
   import matplotlib.pyplot as plt
 
   fig = plt.figure(figsize=(2, 1))
