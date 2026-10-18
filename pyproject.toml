@@ -103,6 +103,7 @@ min-severity = "warn"
 missing-import = false
 redundant-condition = false
 untyped-import = false
+unreachable = false
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules", "--ignore-glob=*.#*"]  # (Emacs lock files end in ".py".)
